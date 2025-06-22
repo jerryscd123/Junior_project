@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Search, Calendar, TrendingUp, Users, Clock } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -10,41 +10,201 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MessageTable } from "./message-table"
 import { MessageCards } from "./message-cards"
 import { MessageDetail } from "./message-detail"
-import { mockMessages } from "./lib/mock-data"
 import { filterMessages, sortMessages } from "./lib/utils"
-import type { Message, ViewMode, SortOption } from "./types/message"
+import type { ViewMode, SortOption } from "./types/message"
 import Image from "next/image"
 import user from "@/assets/admin.png"
 import { TypingAnimation } from "@/components/magicui/typing-animation"
-
+import { useAppDispatch, useAppSelector } from "@/store/hooks"
+import { 
+  fetchAdminUserMessages, 
+  replyToUserMessage,
+  updateMessageStatus as updateMessageStatusAction,
+  setMessageFilters 
+} from "@/store/slices/adminSlice"
+import { Message } from "@/store/types/message"
+import { useToast } from "@/hooks/use-toast"
 
 export default function ContactAdminDashboard() {
-  const [messages, setMessages] = useState<Message[]>(mockMessages)
+  const dispatch = useAppDispatch()
+  const { toast } = useToast()
+  
+  // Redux state
+  const { 
+    userMessages = [], 
+    loading = { 
+      fetchAllMessages: false, 
+      replyToMessage: false,
+      updateMessageStatus: false 
+    }, 
+    filters = { 
+      messages: { 
+        page: 1, 
+        per_page: 20,
+        status: undefined,
+        search: undefined
+      } 
+    }
+  } = useAppSelector((state) => state.admin)
+  
+  // Local state
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [sortBy, setSortBy] = useState<SortOption>("newest")
   const [viewMode, setViewMode] = useState<ViewMode>("table")
 
+  // Fetch messages on component mount and when filters change
+  useEffect(() => {
+    const params = {
+      page: 1,
+      per_page: 20,
+      ...(statusFilter !== "all" && { status: statusFilter as 'unread' | 'read' | 'responded' }),
+      ...(searchQuery && { search: searchQuery })
+    }
+    
+    dispatch(fetchAdminUserMessages(params))
+  }, [dispatch, statusFilter, searchQuery])
+
+  // Handle search with debouncing
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchQuery !== filters.messages.search) {
+        dispatch(setMessageFilters({ 
+          ...filters.messages, 
+          search: searchQuery,
+          page: 1 
+        }))
+      }
+    }, 500)
+
+    return () => clearTimeout(timeoutId)
+  }, [searchQuery, dispatch, filters.messages])
+
+  // Handle status filter changes
+  useEffect(() => {
+    const status = statusFilter === "all" ? undefined : statusFilter as 'unread' | 'read' | 'responded'
+    if (status !== filters.messages.status) {
+      dispatch(setMessageFilters({ 
+        ...filters.messages, 
+        status,
+        page: 1 
+      }))
+    }
+  }, [statusFilter, dispatch, filters.messages])
+
+  // Convert Redux messages to local format for compatibility with existing components
+  const convertedMessages = useMemo(() => {
+    return (userMessages || []).map(message => {
+      // Parse content if it's a JSON string (for some test messages)
+      let parsedContent = message.content;
+      try {
+        const parsed = JSON.parse(message.content);
+        if (parsed.content) {
+          parsedContent = parsed.content;
+        }
+      } catch {
+        // If parsing fails, use the original content
+        parsedContent = message.content;
+      }
+
+      return {
+        id: message.id,
+        senderName: message.sender?.name || 'Unknown User',
+        senderEmail: message.sender?.email || 'unknown@email.com',
+        subject: message.subject,
+        message: parsedContent,
+        status: message.status === 'responded' ? 'resolved' : message.status as 'unread' | 'read' | 'resolved',
+        receivedDate: message.created_at,
+        adminReply: message.admin_reply
+      }
+    })
+  }, [userMessages])
+
   // Filter and sort messages
   const filteredAndSortedMessages = useMemo(() => {
-    const filtered = filterMessages(messages, searchQuery, statusFilter)
+    const filtered = filterMessages(convertedMessages, searchQuery, statusFilter)
     return sortMessages(filtered, sortBy)
-  }, [messages, searchQuery, statusFilter, sortBy])
+  }, [convertedMessages, searchQuery, statusFilter, sortBy])
 
-  const updateMessageStatus = (messageId: number, newStatus: Message["status"]) => {
-    setMessages((prev) => prev.map((msg) => (msg.id === messageId ? { ...msg, status: newStatus } : msg)))
+  const updateMessageStatus = async (messageId: number, newStatus: 'unread' | 'read' | 'resolved') => {
+    try {
+      // Convert local status to Redux status
+      const reduxStatus = newStatus === 'resolved' ? 'responded' : newStatus
+      
+      // Optimistic update for selected message
+      if (selectedMessage?.id === messageId) {
+        setSelectedMessage({
+          ...selectedMessage,
+          status: reduxStatus
+        })
+      }
+      
+      // Update message status using Redux action
+      await dispatch(updateMessageStatusAction({ 
+        messageId, 
+        status: reduxStatus as 'read' | 'responded' 
+      })).unwrap()
 
-    if (selectedMessage?.id === messageId) {
-      setSelectedMessage((prev) => (prev ? { ...prev, status: newStatus } : null))
+      // Update selected message with the actual updated data from Redux store
+      if (selectedMessage?.id === messageId) {
+        const updatedMessage = userMessages.find(m => m.id === messageId)
+        if (updatedMessage) {
+          setSelectedMessage(updatedMessage)
+        }
+      }
+
+      toast({
+        title: "Status Updated",
+        description: `Message marked as ${newStatus}`,
+      })
+    } catch {
+      // Revert optimistic update on error
+      if (selectedMessage?.id === messageId) {
+        const originalMessage = userMessages.find(m => m.id === messageId)
+        if (originalMessage) {
+          setSelectedMessage(originalMessage)
+        }
+      }
+      
+      toast({
+        title: "Error",
+        description: "Failed to update message status",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleReplyToMessage = async (messageId: number, content: string) => {
+    try {
+      await dispatch(replyToUserMessage({ messageId, content })).unwrap()
+      
+      // Refetch messages to get updated data
+      await dispatch(fetchAdminUserMessages({
+        page: filters.messages.page,
+        per_page: filters.messages.per_page,
+        status: filters.messages.status,
+        search: filters.messages.search
+      }))
+
+      toast({
+        title: "Reply Sent",
+        description: "Your reply has been sent successfully",
+      })
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to send reply",
+        variant: "destructive",
+      })
     }
   }
 
   const stats = {
-    total: messages.length,
-    unread: messages.filter((m) => m.status === "unread").length,
-    read: messages.filter((m) => m.status === "read").length,
-    resolved: messages.filter((m) => m.status === "resolved").length,
+    total: convertedMessages.length,
+    unread: convertedMessages.filter((m) => m.status === "unread").length,
+    read: convertedMessages.filter((m) => m.status === "read").length,
+    resolved: convertedMessages.filter((m) => m.status === "resolved").length,
   }
 
   return (
@@ -146,6 +306,7 @@ export default function ContactAdminDashboard() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-12 h-12 border-0 shadow-lg focus:shadow-xl transition-all duration-500 rounded-xl bg-white/80 text-slate-900 placeholder:text-slate-500 focus:bg-white"
+                    disabled={loading.fetchAllMessages}
                   />
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3">
@@ -157,7 +318,7 @@ export default function ContactAdminDashboard() {
                       <SelectItem value="all">All Status</SelectItem>
                       <SelectItem value="unread">Unread</SelectItem>
                       <SelectItem value="read">Read</SelectItem>
-                      <SelectItem value="resolved">Resolved</SelectItem>
+                      <SelectItem value="responded">Resolved</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -205,6 +366,9 @@ export default function ContactAdminDashboard() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg sm:text-xl font-semibold text-slate-900">
                 Messages ({filteredAndSortedMessages.length})
+                {loading.fetchAllMessages && (
+                  <span className="ml-2 text-sm text-slate-500">Loading...</span>
+                )}
               </CardTitle>
               {stats.unread > 0 && (
                 <Badge className="bg-gradient-to-r from-red-500 to-pink-500 text-white shadow-lg">
@@ -218,13 +382,28 @@ export default function ContactAdminDashboard() {
               {viewMode === "table" ? (
                 <MessageTable
                   messages={filteredAndSortedMessages}
-                  onMessageSelect={setSelectedMessage}
-                  onStatusUpdate={(messageId: number, status: "unread" | "read" | "resolved") =>
-                    updateMessageStatus(messageId, status)
-                  }
+                  onMessageSelect={(message) => {
+                    // Convert back to Redux Message format for detail view
+                    const reduxMessage = userMessages.find(m => m.id === message.id)
+                    if (reduxMessage) {
+                      setSelectedMessage(reduxMessage)
+                    }
+                  }}
+                  onStatusUpdate={updateMessageStatus}
+                  loading={loading.fetchAllMessages}
                 />
               ) : (
-                <MessageCards messages={filteredAndSortedMessages} onMessageSelect={setSelectedMessage} />
+                <MessageCards 
+                  messages={filteredAndSortedMessages} 
+                  onMessageSelect={(message) => {
+                    // Convert back to Redux Message format for detail view
+                    const reduxMessage = userMessages.find(m => m.id === message.id)
+                    if (reduxMessage) {
+                      setSelectedMessage(reduxMessage)
+                    }
+                  }}
+                  loading={loading.fetchAllMessages}
+                />
               )}
             </div>
           </CardContent>
@@ -235,7 +414,10 @@ export default function ContactAdminDashboard() {
           message={selectedMessage}
           open={!!selectedMessage}
           onClose={() => setSelectedMessage(null)}
-          onStatusUpdate={(messageId: number, status: Message["status"]) => updateMessageStatus(messageId, status)}
+          onStatusUpdate={updateMessageStatus}
+          onReply={handleReplyToMessage}
+          loading={loading.replyToMessage}
+          statusUpdateLoading={loading.updateMessageStatus}
         />
       </div>
     </div>

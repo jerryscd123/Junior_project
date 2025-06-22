@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { EyeOff, ScanSearch, Users, Bookmark, ChevronDown, Settings, Scale, MessagesSquareIcon, X } from "lucide-react"
+import { EyeOff, ScanSearch, Users, ChevronDown, Settings, Scale, MessagesSquareIcon, X, FileText } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "./ui/button"
 
@@ -38,15 +38,15 @@ export function Sidebar({
   }, [currentPath])
 
   useEffect(() => {
-    if (activeItem.includes("/feed") || activeItem.includes("/trending")) {
+    if (activeItem.includes("/user-dashboard/feed") || activeItem.includes("/user-dashboard/trending")) {
       setExpandedItems((prev) => ({ ...prev, "Anonymous Posts": true }))
     }
 
-    if (activeItem.includes("/resources") || activeItem.includes("/campus") || activeItem.includes("/education")) {
+    if (activeItem.includes("/user-dashboard/resources") || activeItem.includes("/user-dashboard/campus")) {
       setExpandedItems((prev) => ({ ...prev, Resources: true }))
     }
 
-    if (activeItem.includes("/faq") || activeItem.includes("/notifications")) {
+    if (activeItem.includes("/user-dashboard/faq") || activeItem.includes("/user-dashboard/notifications")) {
       setExpandedItems((prev) => ({ ...prev, Setting: true }))
     }
   }, [activeItem])
@@ -70,7 +70,7 @@ export function Sidebar({
     setActiveItem(itemName)
 
     // Close all dropdowns when clicking non-dropdown menu items
-    if (itemName === "/bookmarks" || itemName === "/about" || itemName === "/rule" || itemName === "/contact") {
+    if (itemName === "/user-dashboard/bookmarks" || itemName === "/user-dashboard/about" || itemName === "/user-dashboard/rule" || itemName === "/user-dashboard/contact" || itemName === "/user-dashboard/my-posts") {
       setExpandedItems({
         "Anonymous Posts": false,
         Resources: false,
@@ -78,11 +78,11 @@ export function Sidebar({
       })
     } else {
       // Keep the current dropdown open based on the clicked item
-      if (itemName.includes("/feed") || itemName.includes("/trending")) {
+      if (itemName.includes("/user-dashboard/feed") || itemName.includes("/user-dashboard/trending")) {
         setExpandedItems((prev) => ({ ...prev, "Anonymous Posts": true }))
-      } else if (itemName.includes("/resources") || itemName.includes("/campus") || itemName.includes("/education")) {
+      } else if (itemName.includes("/user-dashboard/resources") || itemName.includes("/user-dashboard/campus")) {
         setExpandedItems((prev) => ({ ...prev, Resources: true }))
-      } else if (itemName.includes("/faq") || itemName.includes("/notifications")) {
+      } else if (itemName.includes("/user-dashboard/faq") || itemName.includes("/user-dashboard/notifications")) {
         setExpandedItems((prev) => ({ ...prev, Setting: true }))
       }
     }
@@ -142,43 +142,44 @@ export function Sidebar({
             href="/user-dashboard/feed"
             className={cn(
               "flex items-center gap-3 px-6 py-3 rounded-md transition-all duration-300 ease-in-out",
-              activeItem === "/feed"
+              activeItem === "/user-dashboard/feed"
                 ? "bg-[#1d2b7d] dark:bg-white text-white dark:text-[#1d2b7d]"
                 : "text-gray-700 dark:text-gray-200",
             )}
-            onClick={() => handleItemClick("/feed")}
+            onClick={() => handleItemClick("/user-dashboard/feed")}
           >
             <EyeOff
               className={cn(
                 "h-5 w-5 transition-colors duration-300 ease-in-out",
-                activeItem === "/feed" ? "text-white dark:text-[#1d2b7d]" : "text-gray-500 dark:text-gray-400",
+                activeItem === "/user-dashboard/feed" ? "text-white dark:text-[#1d2b7d]" : "text-gray-500 dark:text-gray-400",
               )}
             />
             <span className="font-medium">Anonymous Posts</span>
           </Link>
         </div>
 
-        {/* Bookmarks */}
+        {/* My Posts */}
         <div className="mb-1 mx-2">
           <Link
-            href="/user-dashboard/bookmarks"
+            href="/user-dashboard/my-posts"
             className={cn(
               "flex items-center gap-3 px-6 py-3 rounded-md transition-all duration-300 ease-in-out",
-              activeItem === "/bookmarks"
+              activeItem === "/user-dashboard/my-posts"
                 ? "bg-[#1d2b7d] dark:bg-white text-white dark:text-[#1d2b7d]"
                 : "text-gray-700 dark:text-gray-200",
             )}
-            onClick={() => handleItemClick("/bookmarks")}
+            onClick={() => handleItemClick("/user-dashboard/my-posts")}
           >
-            <Bookmark
+            <FileText
               className={cn(
                 "h-5 w-5 transition-colors duration-300 ease-in-out",
-                activeItem === "/bookmarks" ? "text-white dark:text-[#1d2b7d]" : "text-gray-500 dark:text-gray-400",
+                activeItem === "/user-dashboard/my-posts" ? "text-white dark:text-[#1d2b7d]" : "text-gray-500 dark:text-gray-400",
               )}
             />
-            <span className="font-medium">Bookmarks</span>
+            <span className="font-medium">My Posts</span>
           </Link>
         </div>
+
 
         {/* Resources */}
         <div className="mb-1">
@@ -221,10 +222,10 @@ export function Sidebar({
                 href="/user-dashboard/resources"
                 className={cn(
                   "block py-2 pl-2 text-gray-700 dark:text-gray-300 transition-colors rounded-md",
-                  activeItem === "/resources" &&
+                  activeItem === "/user-dashboard/resources" &&
                     "bg-[#1d2b7d] dark:bg-white text-white dark:text-[#1d2b7d] font-medium",
                 )}
-                onClick={() => handleItemClick("/resources")}
+                onClick={() => handleItemClick("/user-dashboard/resources")}
               >
                 <div className="flex items-center">
                   <span>Emergency Help</span>
@@ -236,27 +237,12 @@ export function Sidebar({
                 href="/user-dashboard/campus"
                 className={cn(
                   "block py-2 pl-2 text-gray-700 dark:text-gray-300 transition-colors rounded-md",
-                  activeItem === "/campus" && "bg-[#1d2b7d] dark:bg-white text-white dark:text-[#1d2b7d] font-medium",
+                  activeItem === "/user-dashboard/campus" && "bg-[#1d2b7d] dark:bg-white text-white dark:text-[#1d2b7d] font-medium",
                 )}
-                onClick={() => handleItemClick("/campus")}
+                onClick={() => handleItemClick("/user-dashboard/campus")}
               >
                 <div className="flex items-center">
                   <span>Campus Resources</span>
-                </div>
-              </Link>
-            </div>
-            <div>
-              <Link
-                href="/user-dashboard/education"
-                className={cn(
-                  "block py-2 pl-2 text-gray-700 dark:text-gray-300 transition-colors rounded-md",
-                  activeItem === "/education" &&
-                    "bg-[#1d2b7d] dark:bg-white text-white dark:text-[#1d2b7d] font-medium",
-                )}
-                onClick={() => handleItemClick("/education")}
-              >
-                <div className="flex items-center">
-                  <span>Education Material</span>
                 </div>
               </Link>
             </div>
@@ -269,16 +255,16 @@ export function Sidebar({
             href="/user-dashboard/about"
             className={cn(
               "flex items-center gap-3 px-6 py-3 rounded-md transition-all duration-300 ease-in-out",
-              activeItem === "/about"
+              activeItem === "/user-dashboard/about"
                 ? "bg-[#1d2b7d] dark:bg-white text-white dark:text-[#1d2b7d]"
                 : "text-gray-700 dark:text-gray-200",
             )}
-            onClick={() => handleItemClick("/about")}
+            onClick={() => handleItemClick("/user-dashboard/about")}
           >
             <Users
               className={cn(
                 "h-5 w-5 transition-colors duration-300 ease-in-out",
-                activeItem === "/about" ? "text-white dark:text-[#1d2b7d]" : "text-gray-500 dark:text-gray-400",
+                activeItem === "/user-dashboard/about" ? "text-white dark:text-[#1d2b7d]" : "text-gray-500 dark:text-gray-400",
               )}
             />
             <span className="font-medium">About Us</span>
@@ -331,9 +317,9 @@ export function Sidebar({
                 href="/user-dashboard/faq"
                 className={cn(
                   "block py-2 pl-2 text-gray-700 dark:text-gray-300 transition-colors rounded-md",
-                  activeItem === "/faq" && "bg-[#1d2b7d] dark:bg-white text-white dark:text-[#1d2b7d] font-medium",
+                  activeItem === "/user-dashboard/faq" && "bg-[#1d2b7d] dark:bg-white text-white dark:text-[#1d2b7d] font-medium",
                 )}
-                onClick={() => handleItemClick("/faq")}
+                onClick={() => handleItemClick("/user-dashboard/faq")}
               >
                 <div className="flex items-center">
                   <span>FAQ</span>
@@ -345,10 +331,10 @@ export function Sidebar({
                 href="/user-dashboard/notifications"
                 className={cn(
                   "block py-2 pl-2 text-gray-700 dark:text-gray-300 transition-colors rounded-md",
-                  activeItem === "/notifications" &&
+                  activeItem === "/user-dashboard/notifications" &&
                     "bg-[#1d2b7d] dark:bg-white text-white dark:text-[#1d2b7d] font-medium",
                 )}
-                onClick={() => handleItemClick("/notifications")}
+                onClick={() => handleItemClick("/user-dashboard/notifications")}
               >
                 <div className="flex items-center">
                   <span>Notifications</span>
@@ -364,16 +350,16 @@ export function Sidebar({
             href="/user-dashboard/rule"
             className={cn(
               "flex items-center gap-3 px-6 py-3 rounded-md transition-all duration-300 ease-in-out",
-              activeItem === "/rule"
+              activeItem === "/user-dashboard/rule"
                 ? "bg-[#1d2b7d] dark:bg-white text-white dark:text-[#1d2b7d]"
                 : "text-gray-700 dark:text-gray-200",
             )}
-            onClick={() => handleItemClick("/rule")}
+            onClick={() => handleItemClick("/user-dashboard/rule")}
           >
             <Scale
               className={cn(
                 "h-5 w-5 transition-colors duration-300 ease-in-out",
-                activeItem === "/rule" ? "text-white dark:text-[#1d2b7d]" : "text-gray-500 dark:text-gray-400",
+                activeItem === "/user-dashboard/rule" ? "text-white dark:text-[#1d2b7d]" : "text-gray-500 dark:text-gray-400",
               )}
             />
             <span className="font-medium">Rules</span>
@@ -386,16 +372,16 @@ export function Sidebar({
             href="/user-dashboard/contact"
             className={cn(
               "flex items-center gap-3 px-6 py-3 rounded-md transition-all duration-300 ease-in-out",
-              activeItem === "/contact"
+              activeItem === "/user-dashboard/contact"
                 ? "bg-[#1d2b7d] dark:bg-white text-white dark:text-[#1d2b7d]"
                 : "text-gray-700 dark:text-gray-200",
             )}
-            onClick={() => handleItemClick("/contact")}
+            onClick={() => handleItemClick("/user-dashboard/contact")}
           >
             <MessagesSquareIcon
               className={cn(
                 "h-5 w-5 transition-colors duration-300 ease-in-out",
-                activeItem === "/contact" ? "text-white dark:text-[#1d2b7d]" : "text-gray-500 dark:text-gray-400",
+                activeItem === "/user-dashboard/contact" ? "text-white dark:text-[#1d2b7d]" : "text-gray-500 dark:text-gray-400",
               )}
             />
             <span className="font-medium">Contact Us</span>

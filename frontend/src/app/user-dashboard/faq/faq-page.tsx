@@ -6,15 +6,36 @@ import { Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import FaqAccordion from "./faq-accordion"
 import FaqCategory from "./faq-category"
+import { useFaqs } from "@/store/hooks"
+import { useAppDispatch } from "@/store/hooks"
+import { fetchFaqs, setFilters } from "@/store/slices/faqSlice"
 
 export default function FaqPage() {
   const [isVisible, setIsVisible] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [activeCategory, setActiveCategory] = useState("all")
+  
+  // Redux state
+  const dispatch = useAppDispatch()
+  const { faqs, loading, error, filters } = useFaqs()
 
   useEffect(() => {
     setIsVisible(true)
-  }, [])
+    // Fetch FAQs from API
+    dispatch(fetchFaqs({}))
+  }, [dispatch])
+
+  // Handle search query changes
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchQuery !== filters.search) {
+        dispatch(setFilters({ search: searchQuery || undefined, page: 1 }))
+        dispatch(fetchFaqs({ search: searchQuery || undefined, page: 1 }))
+      }
+    }, 500) // Debounce search
+
+    return () => clearTimeout(timeoutId)
+  }, [searchQuery, dispatch, filters.search])
 
   const categories = [
     { id: "all", name: "All Questions" },
@@ -24,99 +45,19 @@ export default function FaqPage() {
     { id: "emergency", name: "Emergency Support" },
   ]
 
-  const faqs = [
-    {
-      id: 1,
-      question: "How do I schedule a counseling appointment?",
-      answer:
-        "You can schedule a counseling appointment by emailing counseling@paragoniu.edu.kh, calling our office at 017 276477, or visiting the Student Affairs Office on the 2nd floor during business hours (Monday-Friday, 8:00 AM - 5:00 PM).",
-      category: "counseling",
-    },
-    {
-      id: 2,
-      question: "Is counseling confidential?",
-      answer:
-        "Yes, all counseling services are strictly confidential. Information shared during sessions will not be disclosed to anyone without your written permission, except in situations where there is a risk of harm to yourself or others, or as required by law.",
-      category: "counseling",
-    },
-    {
-      id: 3,
-      question: "How much do counseling services cost?",
-      answer:
-        "Counseling services are provided free of charge to all enrolled Paragon International University students as part of your student services.",
-      category: "counseling",
-    },
-    {
-      id: 4,
-      question: "How do I join a peer support group?",
-      answer:
-        "You can join any peer support group by simply showing up at the scheduled time and location. No registration is required. If you have questions before attending, you can email supportgroups@paragoniu.edu.kh for more information.",
-      category: "support",
-    },
-    {
-      id: 5,
-      question: "Can I start my own support group?",
-      answer:
-        "Yes! Students are encouraged to start support groups based on specific needs. To start a new group, please contact the Student Affairs Office with your proposal, including the focus of the group, potential meeting times, and how it would benefit students.",
-      category: "support",
-    },
-    {
-      id: 6,
-      question: "How can I access the educational resources?",
-      answer:
-        "All educational resources are available online through the university portal. You can also find physical copies of many resources in the Student Affairs Office and the university library. Digital resources can be downloaded directly from our website.",
-      category: "resources",
-    },
-    {
-      id: 7,
-      question: "Can I contribute to the educational resources?",
-      answer:
-        "We welcome student contributions to our resource library. If you have created or found a resource that you think would be valuable to other students, please submit it to resources@paragoniu.edu.kh for review.",
-      category: "resources",
-    },
-    {
-      id: 8,
-      question: "What should I do in a mental health emergency?",
-      answer:
-        "If you or someone you know is experiencing a mental health emergency, please call the Cambodia Mental Health Hotline at 017 276 477 immediately. If on campus, you can also contact campus security at 017 276477 who can connect you with emergency support services.",
-      category: "emergency",
-    },
-    {
-      id: 9,
-      question: "Are there mental health services available on weekends?",
-      answer:
-        "While our office is closed on weekends, emergency support is available 24/7. Call the Cambodia Mental Health Hotline at 017 276 477 for immediate assistance. Additionally, you can access our online resources at any time.",
-      category: "emergency",
-    },
-    {
-      id: 10,
-      question: "How long are typical counseling sessions?",
-      answer:
-        "Individual counseling sessions typically last 50 minutes. The frequency of sessions will be determined based on your needs and in consultation with your counselor.",
-      category: "counseling",
-    },
-    {
-      id: 11,
-      question: "Can international students access all mental health services?",
-      answer:
-        "Yes, all mental health services are available to all enrolled students, including international students. We also offer an International Student Support Circle specifically designed to address the unique challenges faced by international students.",
-      category: "support",
-    },
-    {
-      id: 12,
-      question: "How do I provide feedback about the mental health services?",
-      answer:
-        "We value your feedback! You can provide feedback about our services by completing our anonymous online feedback form, emailing feedback@paragoniu.edu.kh, or speaking directly with the Director of Student Affairs.",
-      category: "resources",
-    },
-  ]
-
-  const filteredFaqs = faqs.filter(
-    (faq) =>
-      (activeCategory === "all" || faq.category === activeCategory) &&
-      (faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        faq.answer.toLowerCase().includes(searchQuery.toLowerCase())),
-  )
+  // Client-side filtering for categories since API might not support category filtering
+  const filteredFaqs = faqs.filter((faq) => {
+    const searchMatch = !searchQuery || 
+      faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      faq.answer.toLowerCase().includes(searchQuery.toLowerCase())
+    
+    // For now, we'll use a simple keyword-based category filter since the API FAQ model doesn't have category field
+    const categoryMatch = activeCategory === "all" || 
+      faq.question.toLowerCase().includes(activeCategory) ||
+      faq.answer.toLowerCase().includes(activeCategory)
+    
+    return searchMatch && categoryMatch
+  })
 
   return (
 <div className="py-20 bg-gradient-to-b from-slate-50 to-white">
@@ -185,7 +126,33 @@ export default function FaqPage() {
       transition={{ duration: 0.5, delay: 0.3 }}
       className="max-w-4xl mx-auto"
     >
-      {filteredFaqs.length > 0 ? (
+      {loading.fetchFaqs ? (
+        <div className="text-center py-16 bg-white rounded-2xl shadow-lg">
+          <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <div className="w-8 h-8 border-4 border-[#1d2b7d] border-t-transparent rounded-full animate-spin"></div>
+          </div>
+          <h3 className="text-2xl font-semibold text-slate-700 mb-4">Loading FAQs...</h3>
+          <p className="text-lg text-slate-500">
+            Please wait while we fetch the latest information
+          </p>
+        </div>
+      ) : error ? (
+        <div className="text-center py-16 bg-white rounded-2xl shadow-lg">
+          <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <div className="text-red-500 text-2xl">⚠️</div>
+          </div>
+          <h3 className="text-2xl font-semibold text-slate-700 mb-4">Error Loading FAQs</h3>
+          <p className="text-lg text-slate-500 mb-6">
+            {error}
+          </p>
+          <button 
+            onClick={() => dispatch(fetchFaqs({}))}
+            className="px-6 py-3 bg-[#1d2b7d] text-white rounded-lg hover:bg-[#1d2b7d]/90 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      ) : filteredFaqs.length > 0 ? (
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden divide-y divide-slate-200">
           {filteredFaqs.map((faq, index) => (
             <FaqAccordion key={faq.id} faq={faq} index={index} />

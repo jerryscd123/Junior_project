@@ -8,18 +8,16 @@ import {
   Heart,
   TrendingUp,
   Search,
-  Eye,
-  Ban,
   Mail,
   Calendar,
   MoreHorizontal,
-  UserCheck,
-  UserX,
   Activity,
   Sparkles,
   RefreshCw,
   Filter,
   ArrowUpDown,
+  Shield,
+  Trash2,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -32,6 +30,16 @@ import { AnimatedProgressCircle } from "./progress-circle"
 import { AnimatedCounter } from "./animated-counter"
 import { TypingAnimation } from "@/components/magicui/typing-animation"
 import { TrendChart } from "./trend-chart"
+import { useAppDispatch, useAppSelector } from "@/store/hooks"
+import { 
+  fetchDashboardOverview, 
+  fetchWeeklyStatistics, 
+  fetchEngagementStatistics,
+  fetchAllUsers,
+  setUserFilters,
+  updateUser,
+  deleteUser
+} from "@/store/slices/adminSlice"
 
 interface User {
   id: number
@@ -42,15 +50,24 @@ interface User {
   totalComments: number
   totalPosts: number
   joinDate: string
-  lastActive: string
   status: "active" | "inactive" | "banned"
 }
 
 export default function Dashboard() {
+  const dispatch = useAppDispatch()
+  const {
+    dashboardOverview,
+    weeklyStatistics,
+    allUsers,
+    pagination,
+    loading,
+    error
+  } = useAppSelector((state) => state.admin)
+
   const [mounted, setMounted] = useState(false)
   const [timeFilter, setTimeFilter] = useState("week")
   const [searchTerm, setSearchTerm] = useState("")
-  const [sortBy, setSortBy] = useState("likes")
+  const [sortBy, setSortBy] = useState<'created_at' | 'name' | 'email'>("created_at")
   const [statusFilter, setStatusFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(8)
@@ -58,167 +75,160 @@ export default function Dashboard() {
 
   useEffect(() => {
     setMounted(true)
-  }, [])
+    // Fetch dashboard data on mount
+    dispatch(fetchDashboardOverview())
+    dispatch(fetchWeeklyStatistics())
+    dispatch(fetchEngagementStatistics())
+    dispatch(fetchAllUsers({ page: 1, per_page: itemsPerPage }))
+  }, [dispatch, itemsPerPage])
 
-  // Mock user data - replace with real API calls
-  const users: User[] = useMemo(() => [
-    {
-      id: 1,
-      name: "Sarah Johnson",
-      email: "sarah.j@email.com",
-      avatar: "/placeholder.svg?height=40&width=40",
-      totalLikes: 2847,
-      totalComments: 1234,
-      totalPosts: 89,
-      joinDate: "2023-01-15",
-      lastActive: "2 hours ago",
-      status: "active",
-    },
-    {
-      id: 2,
-      name: "Michael Chen",
-      email: "m.chen@email.com",
-      avatar: "/placeholder.svg?height=40&width=40",
-      totalLikes: 1923,
-      totalComments: 876,
-      totalPosts: 67,
-      joinDate: "2023-02-20",
-      lastActive: "1 day ago",
-      status: "active",
-    },
-    {
-      id: 3,
-      name: "Emma Wilson",
-      email: "emma.w@email.com",
-      avatar: "/placeholder.svg?height=40&width=40",
-      totalLikes: 3421,
-      totalComments: 1567,
-      totalPosts: 124,
-      joinDate: "2022-11-08",
-      lastActive: "5 minutes ago",
-      status: "active",
-    },
-    {
-      id: 4,
-      name: "David Rodriguez",
-      email: "d.rodriguez@email.com",
-      avatar: "/placeholder.svg?height=40&width=40",
-      totalLikes: 756,
-      totalComments: 432,
-      totalPosts: 34,
-      joinDate: "2023-06-12",
-      lastActive: "3 days ago",
-      status: "inactive",
-    },
-    {
-      id: 5,
-      name: "Lisa Park",
-      email: "lisa.park@email.com",
-      avatar: "/placeholder.svg?height=40&width=40",
-      totalLikes: 4123,
-      totalComments: 2341,
-      totalPosts: 156,
-      joinDate: "2022-08-03",
-      lastActive: "1 hour ago",
-      status: "active",
-    },
-    {
-      id: 6,
-      name: "James Thompson",
-      email: "j.thompson@email.com",
-      avatar: "/placeholder.svg?height=40&width=40",
-      totalLikes: 234,
-      totalComments: 123,
-      totalPosts: 12,
-      joinDate: "2023-09-15",
-      lastActive: "1 week ago",
-      status: "banned",
-    },
-    {
-      id: 7,
-      name: "Anna Kowalski",
-      email: "anna.k@email.com",
-      avatar: "/placeholder.svg?height=40&width=40",
-      totalLikes: 1876,
-      totalComments: 934,
-      totalPosts: 78,
-      joinDate: "2023-03-22",
-      lastActive: "4 hours ago",
-      status: "active",
-    },
-    {
-      id: 8,
-      name: "Roberto Silva",
-      email: "r.silva@email.com",
-      avatar: "/placeholder.svg?height=40&width=40",
-      totalLikes: 2156,
-      totalComments: 1087,
-      totalPosts: 92,
-      joinDate: "2022-12-10",
-      lastActive: "30 minutes ago",
-      status: "active",
-    },
-  ], [])
-  const userStats = {
-    totalUsers: users.length,
-    newUsers: users.filter((u) => new Date(u.joinDate) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).length,
-    activeUsers: users.filter((u) => u.status === "active").length,
-    userGrowth: 12.5,
-  }
+  // Update Redux filters when local state changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      dispatch(setUserFilters({
+        search: searchTerm || undefined,
+        sort_by: sortBy,
+        sort_order: 'desc',
+        page: currentPage,
+        per_page: itemsPerPage,
+      }))
+      
+      // Fetch users with new filters
+      dispatch(fetchAllUsers({
+        search: searchTerm || undefined,
+        sort_by: sortBy,
+        sort_order: 'desc',
+        page: currentPage,
+        per_page: itemsPerPage,
+      }))
+    }, 300) // Debounce search
 
-  const confessionStats = {
-    totalConfessions: users.reduce((sum, user) => sum + user.totalPosts, 0),
-    newConfessions: 89,
-    avgDaily: 45,
-    confessionGrowth: 8.3,
-  }
+    return () => clearTimeout(timer)
+  }, [searchTerm, sortBy, currentPage, dispatch, itemsPerPage])
 
-  // Filter and sort users
-  const filteredUsers = useMemo(() => {
-    const filtered = users.filter((user) => {
-      const matchesSearch =
-        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchTerm.toLowerCase())
-      const matchesStatus = statusFilter === "all" || user.status === statusFilter
-      return matchesSearch && matchesStatus
-    })
+  // Convert API user data to local interface for compatibility
+  const users: User[] = useMemo(() => {
+    return allUsers.map(user => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      avatar: user.avatar || "/placeholder.svg?height=40&width=40",
+      totalLikes: user.statistics?.total_likes_received || 0,
+      totalComments: user.statistics?.total_comments || 0,
+      totalPosts: user.statistics?.total_posts || 0,
+      joinDate: user.created_at,
+      status: user.role === 'admin' ? 'active' : 'active' // Simplified for now
+    }))
+  }, [allUsers])
 
-    // Sort users
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case "likes":
-          return b.totalLikes - a.totalLikes
-        case "comments":
-          return b.totalComments - a.totalComments
-        case "posts":
-          return b.totalPosts - a.totalPosts
-        case "name":
-          return a.name.localeCompare(b.name)
-        case "joinDate":
-          return new Date(b.joinDate).getTime() - new Date(a.joinDate).getTime()
-        default:
-          return 0
+  // Calculate stats from real data
+  const userStats = useMemo(() => {
+    if (!dashboardOverview) {
+      return {
+        totalUsers: 0,
+        newUsers: 0,
+        userGrowth: 0,
       }
-    })
+    }
+    return {
+      totalUsers: dashboardOverview.total_users,
+      newUsers: dashboardOverview.new_users_last_week,
+      userGrowth: 12.5, // TODO: Calculate from weekly statistics when available
+    }
+  }, [dashboardOverview])
 
-    return filtered
-  }, [users, searchTerm, statusFilter, sortBy])
+  const confessionStats = useMemo(() => {
+    if (!dashboardOverview) {
+      return {
+        totalConfessions: 0,
+        confessionGrowth: 0,
+      }
+    }
+    return {
+      totalConfessions: dashboardOverview.total_confessions,
+      confessionGrowth: 8.3, // TODO: Calculate from weekly statistics when available
+    }
+  }, [dashboardOverview])
 
-  // Pagination
-  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage)
-  const paginatedUsers = filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+  const engagementStats = useMemo(() => {
+    if (!dashboardOverview) {
+      return {
+        totalEngagement: 0,
+        engagementGrowth: 0,
+      }
+    }
+    return {
+      totalEngagement: dashboardOverview.total_engagement.total,
+      engagementGrowth: 5.0, // TODO: Calculate from weekly statistics when available
+    }
+  }, [dashboardOverview])
 
-  const handleUserAction = (userId: number, action: string) => {
-    console.log(`Action ${action} for user ${userId}`)
-    // Implement user actions here
+  // Filter and sort users (now using Redux data)
+  const filteredUsers = users
+  const totalPages = pagination.allUsers?.last_page || 1
+  const paginatedUsers = filteredUsers
+
+  const handleUserAction = async (userId: number, action: string) => {
+    try {
+      switch (action) {
+        case "makeAdmin":
+          console.log(`Making user ${userId} an admin`);
+          await dispatch(updateUser({ 
+            userId, 
+            role: 'admin' 
+          })).unwrap();
+          break;
+        case "delete":
+          console.log(`Deleting user ${userId}`);
+          await dispatch(deleteUser(userId)).unwrap();
+          break;
+        default:
+          console.log(`Action ${action} not implemented for user ${userId}`);
+      }
+    } catch (error) {
+      console.error(`Error performing ${action} on user ${userId}:`, error);
+    }
   }
 
-  const handleBulkAction = (action: string) => {
-    console.log(`Bulk action ${action} for users:`, selectedUsers)
-    // Implement bulk actions here
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
   }
 
   if (!mounted) return null
+
+  // Show loading state while fetching initial data
+  if (loading.fetchDashboardOverview || loading.fetchAllUsers) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <RefreshCw className="w-8 h-8 animate-spin text-purple-600" />
+          <p className="text-lg font-medium text-slate-600">Loading dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="text-red-500 text-lg font-medium">Error loading dashboard</div>
+          <p className="text-slate-600">{error}</p>
+          <Button 
+            onClick={() => {
+              dispatch(fetchDashboardOverview())
+              dispatch(fetchAllUsers({ page: 1, per_page: itemsPerPage }))
+            }}
+            className="bg-purple-600 hover:bg-purple-700"
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Retry
+          </Button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -370,7 +380,7 @@ export default function Dashboard() {
                         <TrendingUp size={8} />+{userStats.userGrowth}%
                       </motion.span>
                     </div>
-                    <p className="text-xs text-slate-400 mt-1">Active: {userStats.activeUsers}</p>
+                    <p className="text-xs text-slate-400 mt-1">Active: {userStats.totalUsers}</p>
                   </div>
                 </div>
               </Card>
@@ -463,7 +473,7 @@ export default function Dashboard() {
                         <TrendingUp size={8} />+{confessionStats.confessionGrowth}%
                       </motion.span>
                     </div>
-                    <p className="text-xs text-slate-400 mt-1">Avg daily: {confessionStats.avgDaily}</p>
+                    <p className="text-xs text-slate-400 mt-1">Avg daily: {Math.round(confessionStats.totalConfessions / 7)}</p>
                   </div>
                 </div>
               </Card>
@@ -497,7 +507,7 @@ export default function Dashboard() {
                     <p className="text-xs text-slate-500 mb-1 font-medium">Total Engagement</p>
                     <div className="flex items-baseline gap-1">
                       <AnimatedCounter
-                        value={users.reduce((sum, user) => sum + user.totalLikes + user.totalComments, 0)}
+                        value={engagementStats.totalEngagement}
                         className="text-lg md:text-2xl font-bold text-slate-800"
                       />
                       <motion.span
@@ -507,7 +517,7 @@ export default function Dashboard() {
                         className="text-emerald-500 text-xs font-semibold flex items-center gap-1"
                       >
                         <TrendingUp size={8} />
-                        +5%
+                        +{engagementStats.engagementGrowth}%
                       </motion.span>
                     </div>
                     <p className="text-xs text-slate-400 mt-1">Likes + Comments</p>
@@ -538,7 +548,10 @@ export default function Dashboard() {
           </div>
 
           <Card className="p-3 md:p-4 bg-white/70 backdrop-blur-xl border-white/20 shadow-xl">
-            <TrendChart />
+            <TrendChart 
+              weeklyStatistics={weeklyStatistics}
+              loading={loading.fetchWeeklyStatistics}
+            />
           </Card>
         </motion.div>
 
@@ -550,48 +563,7 @@ export default function Dashboard() {
         >
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-3 md:mb-4">
             <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
-              <AnimatePresence>
-                {selectedUsers.length > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    transition={{ type: "spring", stiffness: 300 }}
-                    className="flex-1 sm:flex-none"
-                  >
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg w-full sm:w-auto"
-                        >
-                          <motion.div
-                            animate={{ scale: [1, 1.1, 1] }}
-                            transition={{ duration: 0.5, repeat: Number.POSITIVE_INFINITY, repeatDelay: 2 }}
-                          >
-                            <span className="hidden sm:inline">Bulk Actions </span>({selectedUsers.length})
-                          </motion.div>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent className="bg-white/90 backdrop-blur-sm">
-                        <DropdownMenuItem onClick={() => handleBulkAction("activate")}>
-                          <UserCheck size={16} className="mr-2" />
-                          Activate Users
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleBulkAction("deactivate")}>
-                          <UserX size={16} className="mr-2" />
-                          Deactivate Users
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleBulkAction("ban")}>
-                          <Ban size={16} className="mr-2" />
-                          Ban Users
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              {/* Bulk actions removed - no functional implementation */}
             </div>
           </div>
 
@@ -617,17 +589,18 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="flex gap-2 sm:gap-3">
-                  <Select value={sortBy} onValueChange={setSortBy}>
+                  <Select 
+                    value={sortBy} 
+                    onValueChange={(value: string) => setSortBy(value as 'created_at' | 'name' | 'email')}
+                  >
                     <SelectTrigger className="w-full sm:w-36 bg-white/50 border-white/20 text-sm h-9">
                       <ArrowUpDown size={14} className="mr-1" />
                       <SelectValue placeholder="Sort by" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="likes">Most Likes</SelectItem>
-                      <SelectItem value="comments">Most Comments</SelectItem>
-                      <SelectItem value="posts">Most Posts</SelectItem>
+                      <SelectItem value="created_at">Newest First</SelectItem>
                       <SelectItem value="name">Name (A-Z)</SelectItem>
-                      <SelectItem value="joinDate">Newest First</SelectItem>
+                      <SelectItem value="email">Email (A-Z)</SelectItem>
                     </SelectContent>
                   </Select>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -709,28 +682,13 @@ export default function Dashboard() {
                             </motion.div>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="bg-white/95 backdrop-blur-sm">
-                            <DropdownMenuItem onClick={() => handleUserAction(user.id, "view")}>
-                              <Eye size={14} className="mr-2" />
-                              View Profile
+                            <DropdownMenuItem onClick={() => handleUserAction(user.id, "makeAdmin")}>
+                              <Shield size={14} className="mr-2" />
+                              Make Admin
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleUserAction(user.id, "message")}>
-                              <Mail size={14} className="mr-2" />
-                              Send Message
-                            </DropdownMenuItem>
-                            {user.status === "active" ? (
-                              <DropdownMenuItem onClick={() => handleUserAction(user.id, "deactivate")}>
-                                <UserX size={14} className="mr-2" />
-                                Deactivate
-                              </DropdownMenuItem>
-                            ) : (
-                              <DropdownMenuItem onClick={() => handleUserAction(user.id, "activate")}>
-                                <UserCheck size={14} className="mr-2" />
-                                Activate
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem onClick={() => handleUserAction(user.id, "ban")} className="text-red-600">
-                              <Ban size={14} className="mr-2" />
-                              Ban User
+                            <DropdownMenuItem onClick={() => handleUserAction(user.id, "delete")} className="text-red-700">
+                              <Trash2 size={14} className="mr-2" />
+                              Delete User
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -851,7 +809,6 @@ export default function Dashboard() {
                               </motion.div>
                               <div>
                                 <div className="font-bold text-slate-800 text-sm">{user.name}</div>
-                                <div className="text-xs text-slate-500">Last: {user.lastActive}</div>
                               </div>
                             </div>
                           </td>
@@ -926,31 +883,13 @@ export default function Dashboard() {
                                 </motion.div>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="bg-white/95 backdrop-blur-sm">
-                                <DropdownMenuItem onClick={() => handleUserAction(user.id, "view")}>
-                                  <Eye size={14} className="mr-2" />
-                                  View Profile
+                                <DropdownMenuItem onClick={() => handleUserAction(user.id, "makeAdmin")}>
+                                  <Shield size={14} className="mr-2" />
+                                  Make Admin
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleUserAction(user.id, "message")}>
-                                  <Mail size={14} className="mr-2" />
-                                  Send Message
-                                </DropdownMenuItem>
-                                {user.status === "active" ? (
-                                  <DropdownMenuItem onClick={() => handleUserAction(user.id, "deactivate")}>
-                                    <UserX size={14} className="mr-2" />
-                                    Deactivate
-                                  </DropdownMenuItem>
-                                ) : (
-                                  <DropdownMenuItem onClick={() => handleUserAction(user.id, "activate")}>
-                                    <UserCheck size={14} className="mr-2" />
-                                    Activate
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuItem
-                                  onClick={() => handleUserAction(user.id, "ban")}
-                                  className="text-red-600"
-                                >
-                                  <Ban size={14} className="mr-2" />
-                                  Ban User
+                                <DropdownMenuItem onClick={() => handleUserAction(user.id, "delete")} className="text-red-700">
+                                  <Trash2 size={14} className="mr-2" />
+                                  Delete User
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -971,23 +910,29 @@ export default function Dashboard() {
               transition={{ delay: 0.5 }}
             >
               <div className="text-xs md:text-sm text-slate-600 font-medium">
-                Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
-                {Math.min(currentPage * itemsPerPage, filteredUsers.length)} of {filteredUsers.length} users
+                {pagination.allUsers ? (
+                  <>
+                    Showing {pagination.allUsers.from} to{" "}
+                    {pagination.allUsers.to} of {pagination.allUsers.total} users
+                  </>
+                ) : (
+                  `Showing ${paginatedUsers.length} users`
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                    className="bg-black text-white border-black hover:bg-gray-800 font-semibold px-3 h-8 text-xs"
+                    onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1 || loading.fetchAllUsers}
+                    className="bg-gradient-to-r from-purple-600 to-blue-600 text-white border-purple-600 hover:from-purple-700 hover:to-blue-700 font-semibold px-3 h-8 text-xs transition-all duration-300 disabled:from-slate-300 disabled:to-slate-400 disabled:text-slate-500"
                   >
                     Previous
                   </Button>
                 </motion.div>
                 <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  {pagination.allUsers && Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                     const page = i + 1
                     return (
                       <motion.div
@@ -999,11 +944,12 @@ export default function Dashboard() {
                         <Button
                           variant={currentPage === page ? "default" : "outline"}
                           size="sm"
-                          onClick={() => setCurrentPage(page)}
-                          className={`w-8 h-8 p-0 text-xs font-bold ${
+                          onClick={() => handlePageChange(page)}
+                          disabled={loading.fetchAllUsers}
+                          className={`w-8 h-8 p-0 text-xs font-bold transition-all duration-300 ${
                             currentPage === page
-                              ? "bg-black text-white border-black"
-                              : "bg-black text-white border-black hover:bg-gray-800"
+                              ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white border-purple-600 shadow-lg"
+                              : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200 hover:border-slate-300"
                           }`}
                         >
                           {page}
@@ -1016,9 +962,9 @@ export default function Dashboard() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage === totalPages}
-                    className="bg-black text-white border-black hover:bg-gray-800 font-semibold px-3 h-8 text-xs"
+                    onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage === totalPages || loading.fetchAllUsers}
+                    className="bg-gradient-to-r from-purple-600 to-blue-600 text-white border-purple-600 hover:from-purple-700 hover:to-blue-700 font-semibold px-3 h-8 text-xs transition-all duration-300 disabled:from-slate-300 disabled:to-slate-400 disabled:text-slate-500"
                   >
                     Next
                   </Button>

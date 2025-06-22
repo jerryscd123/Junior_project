@@ -1,25 +1,71 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { useState } from "react"
+import { useState, useMemo } from "react"
+import { WeeklyStatistics } from "@/store/types/admin"
 
-export function TrendChart() {
+interface TrendChartProps {
+  weeklyStatistics?: WeeklyStatistics | null
+  loading?: boolean
+}
+
+export function TrendChart({ weeklyStatistics, loading = false }: TrendChartProps) {
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null)
 
-  const data = [
-    { day: "Mon", users: 120, confessions: 45, engagement: 78 },
-    { day: "Tue", users: 145, confessions: 52, engagement: 82 },
-    { day: "Wed", users: 98, confessions: 38, engagement: 65 },
-    { day: "Thu", users: 167, confessions: 61, engagement: 89 },
-    { day: "Fri", users: 189, confessions: 73, engagement: 95 },
-    { day: "Sat", users: 134, confessions: 48, engagement: 71 },
-    { day: "Sun", users: 156, confessions: 58, engagement: 84 },
-  ]
+  // Process real data or use fallback
+  const data = useMemo(() => {
+    if (!weeklyStatistics) {
+      // Fallback mock data
+      return [
+        { day: "Week 1", users: 0, confessions: 0, engagement: 0 },
+        { day: "Week 2", users: 0, confessions: 0, engagement: 0 },
+        { day: "Week 3", users: 0, confessions: 0, engagement: 0 },
+        { day: "Week 4", users: 0, confessions: 0, engagement: 0 },
+        { day: "Week 5", users: 0, confessions: 0, engagement: 0 },
+        { day: "Week 6", users: 0, confessions: 0, engagement: 0 },
+        { day: "Week 7", users: 0, confessions: 0, engagement: 0 },
+      ]
+    }
 
-  const maxUsers = Math.max(...data.map((d) => d.users))
-  const maxConfessions = Math.max(...data.map((d) => d.confessions))
+    // Convert API data to chart format
+    const combinedData: Array<{
+      day: string
+      users: number
+      confessions: number
+      engagement: number
+    }> = []
+
+    // Process the last 7 weeks of data
+    const maxLength = Math.min(7, weeklyStatistics.weekly_confessions.length)
+    
+    for (let i = 0; i < maxLength; i++) {
+      const confessionData = weeklyStatistics.weekly_confessions[i]
+      const userData = weeklyStatistics.weekly_new_users.find(
+        (u) => u.week === confessionData.week
+      )
+      const engagementData = weeklyStatistics.weekly_engagement.find(
+        (e) => e.week === confessionData.week
+      )
+
+      const weekLabel = `Week ${i + 1}`
+
+      combinedData.push({
+        day: weekLabel,
+        users: userData?.count || 0,
+        confessions: confessionData.count,
+        engagement: engagementData?.total || 0,
+      })
+    }
+
+    return combinedData.slice(-7) // Show last 7 weeks
+  }, [weeklyStatistics])
+
+  const maxUsers = Math.max(...data.map((d) => d.users), 1)
+  const maxConfessions = Math.max(...data.map((d) => d.confessions), 1)
 
   const getPath = (values: number[], max: number) => {
+    if (max === 0) return "M 0,100"
+    
     const points = values
       .map((value, index) => {
         const x = (index / (values.length - 1)) * 100
@@ -38,6 +84,19 @@ export function TrendChart() {
     data.map((d) => d.confessions),
     maxConfessions,
   )
+
+  if (loading) {
+    return (
+      <div className="w-full h-80 relative">
+        <div className="flex items-center justify-center h-full bg-gradient-to-br from-slate-50/50 to-blue-50/50 rounded-2xl">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-sm text-slate-500">Loading chart data...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="w-full h-80 relative">

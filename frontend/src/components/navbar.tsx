@@ -1,8 +1,9 @@
 "use client"
 
-import { BellRing, ChevronDown, BookOpen, User, Globe, LogOut, Moon, Sun, Check, Settings } from "lucide-react"
+import { BellRing, ChevronDown, BookOpen, User, LogOut, Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useState, useEffect } from "react"
+import { useRouter, usePathname } from "next/navigation"
 import logolight from "@/assets/logo8.png"
 import logodark from "@/assets/logo9.png"
 import { Button } from "@/components/ui/button"
@@ -15,66 +16,42 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu"
 import { TypingAnimation } from "./magicui/typing-animation"
 import Image from "next/image"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
-
-// Sample notifications data
-const notifications = [
-  {
-    id: 1,
-    title: "New message",
-    description: "You received a new message from John Doe",
-    time: "2 min ago",
-    read: false,
-    avatar: "/placeholder.svg?height=32&width=32",
-  },
-  {
-    id: 2,
-    title: "Assignment reminder",
-    description: "Your assignment is due tomorrow",
-    time: "1 hour ago",
-    read: false,
-    avatar: null,
-  },
-  {
-    id: 3,
-    title: "System update",
-    description: "The system has been updated successfully",
-    time: "3 hours ago",
-    read: true,
-    avatar: null,
-  },
-  {
-    id: 4,
-    title: "New feature available",
-    description: "Check out the new features in your dashboard",
-    time: "Yesterday",
-    read: true,
-    avatar: null,
-  },
-]
+// Redux imports
+import { useAppDispatch } from "@/store/hooks"
+import { useAuth } from "@/store/hooks"
+import { logoutUser } from "@/store/slices/authSlice"
+// Notification Redux imports
+import { useNotifications } from "@/store/hooks"
+import { fetchNotifications, markAllAsRead, fetchUnreadCount } from "@/store/slices/notificationSlice"
 
 export function Navbar() {
+  const router = useRouter()
+  const pathname = usePathname()
   const { theme, systemTheme, setTheme } = useTheme()
+  
+  // Redux hooks
+  const dispatch = useAppDispatch()
+  const { user } = useAuth()
+  
+  // Notification Redux hooks
+  const { notifications, unreadCount, isLoading: notificationsLoading } = useNotifications()
+  
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
-  const [unreadCount, setUnreadCount] = useState(0)
-  const [language, setLanguage] = useState("english")
-  const [notificationList, setNotificationList] = useState(notifications)
 
+  // Fetch notifications when component mounts
   useEffect(() => {
-    // Count unread notifications
-    const count = notificationList.filter((notification) => !notification.read).length
-    setUnreadCount(count)
-  }, [notificationList])
+    if (user) {
+      console.log("🔔 Navbar: Fetching notifications for user")
+      dispatch(fetchNotifications({ page: 1, per_page: 10 }))
+      dispatch(fetchUnreadCount())
+    }
+  }, [dispatch, user])
 
   useEffect(() => {
     const checkIfMobile = () => {
@@ -118,12 +95,63 @@ export function Navbar() {
     setIsSidebarOpen(false)
   }
 
-  const markAllAsRead = () => {
-    const updatedNotifications = notificationList.map((notification) => ({
-      ...notification,
-      read: true,
-    }))
-    setNotificationList(updatedNotifications)
+  // Handle mark all notifications as read
+  const handleMarkAllAsRead = async () => {
+    try {
+      console.log("🔔 Navbar: Marking all notifications as read")
+      await dispatch(markAllAsRead()).unwrap()
+      console.log("✅ Navbar: All notifications marked as read")
+      // Refresh notifications and unread count
+      dispatch(fetchNotifications({ page: 1, per_page: 10 }))
+      dispatch(fetchUnreadCount())
+    } catch (error) {
+      console.error("❌ Navbar: Failed to mark all notifications as read", error)
+    }
+  }
+
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      console.log("🚪 Navbar: Starting logout process")
+      await dispatch(logoutUser()).unwrap()
+      console.log("✅ Navbar: Logout successful, redirecting to home")
+      router.push("/")
+    } catch (error) {
+      console.error("❌ Navbar: Logout failed", error)
+      // Still redirect to home even if logout fails on server
+      router.push("/")
+    }
+  }
+
+  // Get user display name and initials
+  const getUserDisplayName = () => {
+    if (!user) return "User"
+    return user.name || "User"
+  }
+
+  const getUserInitials = () => {
+    if (!user || !user.name) return "U"
+    const names = user.name.split(" ")
+    if (names.length >= 2) {
+      return (names[0][0] + names[names.length - 1][0]).toUpperCase()
+    }
+    return user.name.substring(0, 2).toUpperCase()
+  }
+
+  // Format notification time
+  const formatNotificationTime = (createdAt: string) => {
+    const now = new Date()
+    const notificationTime = new Date(createdAt)
+    const diffInMs = now.getTime() - notificationTime.getTime()
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60))
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60))
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24))
+
+    if (diffInMinutes < 1) return "Just now"
+    if (diffInMinutes < 60) return `${diffInMinutes} min ago`
+    if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`
+    if (diffInDays < 7) return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`
+    return notificationTime.toLocaleDateString()
   }
 
   return (
@@ -200,7 +228,7 @@ export function Navbar() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={markAllAsRead}
+                      onClick={handleMarkAllAsRead}
                       className="h-8 text-xs text-[#1d2b7d] dark:text-blue-400 hover:text-[#1d2b7d]/80 dark:hover:text-blue-300 hover:bg-[#1d2b7d]/10 dark:hover:bg-blue-900/20 transition-colors"
                     >
                       Mark all as read
@@ -208,25 +236,25 @@ export function Navbar() {
                   )}
                 </div>
                 <div className="max-h-[350px] overflow-y-auto">
-                  {notificationList.length > 0 ? (
-                    notificationList.map((notification) => (
+                  {notifications.length > 0 ? (
+                    notifications.map((notification) => (
                       <div
                         key={notification.id}
                         className={cn(
                           "flex items-start gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-800/70 transition-colors cursor-pointer border-b border-gray-100 dark:border-gray-800/50 last:border-0",
-                          !notification.read && "bg-blue-50/50 dark:bg-blue-900/10",
+                          !notification.is_read && "bg-blue-50/50 dark:bg-blue-900/10",
                         )}
                       >
-                        {notification.avatar ? (
+                        {notification.data.user_avatar ? (
                           <Avatar className="h-9 w-9 border border-gray-200 dark:border-gray-700 flex-shrink-0">
-                            <AvatarImage src={notification.avatar || "/placeholder.svg"} alt="User" />
+                            <AvatarImage src={notification.data.user_avatar || "/placeholder.svg"} alt="User" />
                             <AvatarFallback>U</AvatarFallback>
                           </Avatar>
                         ) : (
                           <div
                             className={cn(
                               "w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0",
-                              notification.read
+                              notification.is_read
                                 ? "bg-gray-100 dark:bg-gray-800"
                                 : "bg-[#1d2b7d]/10 dark:bg-blue-900/20",
                             )}
@@ -234,7 +262,7 @@ export function Navbar() {
                             <BellRing
                               className={cn(
                                 "h-4 w-4",
-                                notification.read
+                                notification.is_read
                                   ? "text-gray-500 dark:text-gray-400"
                                   : "text-[#1d2b7d] dark:text-blue-400",
                               )}
@@ -246,7 +274,7 @@ export function Navbar() {
                             <p
                               className={cn(
                                 "font-medium text-sm",
-                                notification.read
+                                notification.is_read
                                   ? "text-gray-700 dark:text-gray-300"
                                   : "text-gray-900 dark:text-white",
                               )}
@@ -254,11 +282,11 @@ export function Navbar() {
                               {notification.title}
                             </p>
                             <span className="text-[10px] text-gray-400 dark:text-gray-500 ml-2 flex-shrink-0">
-                              {notification.time}
+                              {formatNotificationTime(notification.created_at)}
                             </span>
                           </div>
                           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
-                            {notification.description}
+                            {notification.message}
                           </p>
                         </div>
                       </div>
@@ -266,7 +294,9 @@ export function Navbar() {
                   ) : (
                     <div className="py-12 text-center">
                       <BellRing className="h-8 w-8 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-                      <p className="text-gray-500 dark:text-gray-400">No notifications</p>
+                      <p className="text-gray-500 dark:text-gray-400">
+                        {notificationsLoading ? "Loading notifications..." : "No notifications"}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -290,11 +320,13 @@ export function Navbar() {
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium hidden sm:inline-block text-gray-700 dark:text-gray-200">
-                      Pisethsambo Phok
+                      {getUserDisplayName()}
                     </span>
                     <Avatar className="h-8 w-8 border-2 border-indigo-100 dark:border-indigo-900 ring-2 ring-white dark:ring-gray-900">
                       <AvatarImage src="/placeholder.svg?height=32&width=32" alt="User" />
-                      <AvatarFallback className="bg-[#1d2b7d] text-white dark:bg-blue-900">PS</AvatarFallback>
+                      <AvatarFallback className="bg-[#1d2b7d] text-white dark:bg-blue-900">
+                        {getUserInitials()}
+                      </AvatarFallback>
                     </Avatar>
                   </div>
                   <ChevronDown className="h-4 w-4 text-gray-500 dark:text-gray-400" />
@@ -309,11 +341,17 @@ export function Navbar() {
                   <div className="flex items-center gap-3">
                     <Avatar className="h-12 w-12 border-2 border-indigo-100 dark:border-indigo-900 ring-2 ring-white dark:ring-gray-900">
                       <AvatarImage src="/placeholder.svg?height=48&width=48" alt="User" />
-                      <AvatarFallback className="bg-[#1d2b7d] text-white dark:bg-blue-900">PS</AvatarFallback>
+                      <AvatarFallback className="bg-[#1d2b7d] text-white dark:bg-blue-900">
+                        {getUserInitials()}
+                      </AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="text-sm font-semibold text-gray-900 dark:text-white">Pisethsambo Phok</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">pisethsambo@example.com</p>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {getUserDisplayName()}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        {user?.email || "user@example.com"}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -328,54 +366,6 @@ export function Navbar() {
                       <span>Profile</span>
                     </Link>
                   </DropdownMenuItem>
-
-                  <DropdownMenuItem
-                    asChild
-                    className="flex items-center gap-2 px-3 py-2.5 cursor-pointer rounded-lg text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white"
-                  >
-                    <Link href="/user-dashboard/settings">
-                      <Settings className="h-4 w-4 mr-2 text-gray-500 dark:text-gray-400" />
-                      <span>Settings</span>
-                    </Link>
-                  </DropdownMenuItem>
-
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger className="px-3 py-2.5 rounded-lg text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white">
-                      <Globe className="h-4 w-4 mr-2 text-gray-500 dark:text-gray-400" />
-                      <span>Language</span>
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="min-w-[10rem] p-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg">
-                      <DropdownMenuRadioGroup value={language} onValueChange={setLanguage}>
-                        <DropdownMenuRadioItem
-                          value="english"
-                          className="px-3 py-2 rounded-md text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white"
-                        >
-                          <span>English</span>
-                          {language === "english" && (
-                            <Check className="h-4 w-4 ml-auto text-[#1d2b7d] dark:text-blue-400" />
-                          )}
-                        </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem
-                          value="french"
-                          className="px-3 py-2 rounded-md text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white"
-                        >
-                          <span>French</span>
-                          {language === "french" && (
-                            <Check className="h-4 w-4 ml-auto text-[#1d2b7d] dark:text-blue-400" />
-                          )}
-                        </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem
-                          value="spanish"
-                          className="px-3 py-2 rounded-md text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white"
-                        >
-                          <span>Spanish</span>
-                          {language === "spanish" && (
-                            <Check className="h-4 w-4 ml-auto text-[#1d2b7d] dark:text-blue-400" />
-                          )}
-                        </DropdownMenuRadioItem>
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
 
                   <DropdownMenuItem
                     className="flex items-center gap-2 px-3 py-2.5 cursor-pointer rounded-lg text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white"
@@ -398,7 +388,10 @@ export function Navbar() {
                 <DropdownMenuSeparator className="my-1 bg-gray-200 dark:bg-gray-800" />
 
                 <div className="p-2">
-                  <DropdownMenuItem className="flex items-center gap-2 px-3 py-2.5 cursor-pointer rounded-lg text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 hover:text-red-700 dark:hover:text-red-400">
+                  <DropdownMenuItem
+                    className="flex items-center gap-2 px-3 py-2.5 cursor-pointer rounded-lg text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 hover:text-red-700 dark:hover:text-red-400"
+                    onClick={handleLogout}
+                  >
                     <LogOut className="h-4 w-4 mr-2" />
                     <span>Logout</span>
                   </DropdownMenuItem>
@@ -411,7 +404,7 @@ export function Navbar() {
 
       {/* Desktop Sidebar */}
       <div className="fixed left-0 top-0 bottom-0 w-64 hidden md:block z-40">
-        <Sidebar logoSrc={logoSrc.src} />
+        <Sidebar logoSrc={logoSrc.src} currentPath={pathname} />
       </div>
 
       {/* Mobile Sidebar Overlay with animation */}
@@ -428,7 +421,7 @@ export function Navbar() {
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <Sidebar logoSrc={logoSrc.src} isMobile={true} isOpen={true} onToggle={handleCloseSidebar} />
+        <Sidebar logoSrc={logoSrc.src} isMobile={true} isOpen={true} onToggle={handleCloseSidebar} currentPath={pathname} />
       </div>
     </>
   )

@@ -1,209 +1,564 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   ArrowLeft,
   ArrowRight,
   Check,
-  Filter,
   Search,
   X,
   Grid3X3,
   List,
 } from "lucide-react";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { 
+  fetchPendingPosts, 
+  fetchApprovedPosts, 
+  fetchRejectedPosts,
+  fetchAllPosts,
+  fetchDashboardOverview,
+  approvePost,
+  rejectPost,
+  setPostFilters
+} from "@/store/slices/adminSlice";
+import { RejectionReasonModal } from "./rejection-reason-modal";
+import { ApprovalConfirmationModal } from "./approval-confirmation-modal";
+import { Post } from "@/store/types/post";
 import { ConfessionTableModern } from "./confession-table-modern";
 import { ConfessionCards } from "./confession-cards";
 import { ConfessionModal } from "./confession-modal";
 import { StatsCards } from "./stats-cards";
-import { mockConfessions } from "./data/confessions";
-import type { Confession, ConfessionStats } from "./types/confession";
-import { getTimeFilter } from "./utils/helper";
+import { Confession } from "./types/confession";
 
-export default function ConfessionDashboard() {
-  const [confessions, setConfessions] = useState<Confession[]>(
-    () =>
-      mockConfessions.map((confession) => ({
-        ...confession,
-        userName: confession.email || "Unknown User", // Ensure userName exists
-      })) as Confession[]
-  );
-  const [selectedConfessions, setSelectedConfessions] = useState<number[]>([]);
-  const [selectedConfession, setSelectedConfession] =
-    useState<Confession | null>(null);
+// Define the ConfessionStats interface
+interface ConfessionStats {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+  totalUsers: number;
+  today: number;
+  yesterday: number;
+  lastWeekend: number;
+}
+
+// Transform Post to Confession
+const transformPostToConfession = (post: Post): Confession => ({
+  id: post?.id || 0,
+  userName: post?.is_anonymous 
+    ? "Anonymous" 
+    : (post?.author !== "Anonymous User" ? post?.author : "Anonymous"),
+  title: post?.title || "No title available",
+  description: post?.content || post?.title || "No content available",
+  image: post?.image?.has_image && post?.image?.url ? post.image.url : undefined,
+  hashtag: post?.tags?.length ? post.tags.join(", ") : "general",
+  adminHashtag: post?.admin_note || "",
+  adminComment: post?.admin_note || "",
+  link: "",
+  feeling: "neutral", // Default feeling since posts don't have feelings
+  timeConfession: post?.created_at || new Date().toISOString(),
+  status: post?.status || "pending",
+  category: post?.tags?.[0] || "general",
+  tags: post?.tags || [],
+  likeCount: post?.like_count || 0,
+  commentCount: post?.comment_count || 0,
+});
+
+export default function PostManagementDashboard() {
+  const dispatch = useAppDispatch();
+  
+  // Redux state
+  const {
+    pendingPosts,
+    approvedPosts,
+    rejectedPosts,
+    allPosts,
+    dashboardOverview,
+    pagination,
+    filters,
+    loading,
+    error
+  } = useAppSelector((state) => state.admin);
+
+  // Local state
+  const [selectedPosts, setSelectedPosts] = useState<number[]>([]);
+  const [selectedPost, setSelectedPost] = useState<Confession | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(filters.posts.search || "");
   const [activeTab, setActiveTab] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [statusFilter] = useState(filters.posts.status || "all");
+  const [currentPage, setCurrentPage] = useState(filters.posts.page);
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
-  const itemsPerPage = 8;
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const itemsPerPage = filters.posts.per_page;
+  
+  // Rejection modal state
+  const [isRejectionModalOpen, setIsRejectionModalOpen] = useState(false);
+  const [postToReject, setPostToReject] = useState<number | null>(null);
+  const [isBulkRejection, setIsBulkRejection] = useState(false);
+  
+  // Approval modal state
+  const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
+  const [postToApprove, setPostToApprove] = useState<number | null>(null);
+  const [isBulkApproval, setIsBulkApproval] = useState(false);
 
-  // Calculate stats with total users
+  // Load data on component mount
+  useEffect(() => {
+    dispatch(fetchDashboardOverview());
+    
+    // Load posts based on active tab
+    switch (activeTab) {
+      case "pending":
+        dispatch(fetchPendingPosts({ 
+          page: currentPage, 
+          per_page: itemsPerPage,
+          search: searchTerm || undefined
+        }));
+        break;
+      case "approved":
+        dispatch(fetchApprovedPosts({ 
+          page: currentPage, 
+          per_page: itemsPerPage,
+          search: searchTerm || undefined
+        }));
+        break;
+      case "rejected":
+        dispatch(fetchRejectedPosts({ 
+          page: currentPage, 
+          per_page: itemsPerPage,
+          search: searchTerm || undefined
+        }));
+        break;
+      default:
+        // Load all posts
+        dispatch(fetchAllPosts({ page: currentPage, per_page: itemsPerPage, search: searchTerm || undefined }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on initial mount
+
+  // Update filters in Redux when local state changes
+  useEffect(() => {
+    // Only update the Redux store with filter changes
+    // (don't trigger data fetches here)
+    dispatch(setPostFilters({
+      search: searchTerm || undefined,
+      status: statusFilter !== "all" ? statusFilter as "pending" | "approved" | "rejected" | undefined : undefined,
+      page: currentPage,
+      per_page: itemsPerPage
+    }));
+  }, [dispatch, searchTerm, statusFilter, currentPage, itemsPerPage]);
+
+  // Function to refresh posts data based on current active tab
+  const refreshPostsData = useCallback(() => {
+    setIsRefreshing(true);
+    
+    // Small timeout to ensure the loading state is visible
+    setTimeout(() => {
+      switch (activeTab) {
+        case "pending":
+          dispatch(fetchPendingPosts({ 
+            page: currentPage, 
+            per_page: itemsPerPage, 
+            search: searchTerm || undefined 
+          }));
+          break;
+        case "approved":
+          dispatch(fetchApprovedPosts({ 
+            page: currentPage, 
+            per_page: itemsPerPage, 
+            search: searchTerm || undefined 
+          }));
+          break;
+        case "rejected":
+          dispatch(fetchRejectedPosts({ 
+            page: currentPage, 
+            per_page: itemsPerPage, 
+            search: searchTerm || undefined 
+          }));
+          break;
+        default:
+          dispatch(fetchAllPosts({ 
+            page: currentPage, 
+            per_page: itemsPerPage, 
+            search: searchTerm || undefined 
+          }));
+          break;
+      }
+      
+      // Set refreshing to false after a short delay to ensure smooth transition
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 500);
+    }, 300);
+  }, [dispatch, activeTab, currentPage, itemsPerPage, searchTerm]);
+
+  // Calculate stats from dashboard overview
   const stats: ConfessionStats = useMemo(() => {
-    const uniqueUsers = new Set(confessions.map((c) => c.userName)).size;
-    const today = confessions.filter(
-      (c) => getTimeFilter(c.timeConfession) === "today"
-    );
-    const yesterday = confessions.filter(
-      (c) => getTimeFilter(c.timeConfession) === "yesterday"
-    );
-    const lastWeekend = confessions.filter(
-      (c) => getTimeFilter(c.timeConfession) === "lastWeekend"
-    );
-
-    return {
-      total: confessions.length,
-      pending: confessions.filter((c) => c.status === "pending").length,
-      approved: confessions.filter((c) => c.status === "approved").length,
-      rejected: confessions.filter((c) => c.status === "rejected").length,
-      totalUsers: uniqueUsers,
-      today: today.length,
-      yesterday: yesterday.length,
-      lastWeekend: lastWeekend.length,
-    };
-  }, [confessions]);
-
-  // Filter confessions
-  const filteredConfessions = useMemo(() => {
-    let filtered = confessions;
-
-    if (activeTab !== "all") {
-      filtered = filtered.filter((confession) => {
-        const timeCategory = getTimeFilter(confession.timeConfession);
-        switch (activeTab) {
-          case "today":
-            return timeCategory === "today";
-          case "yesterday":
-            return timeCategory === "yesterday";
-          case "lastWeekend":
-            return timeCategory === "lastWeekend";
-          case "pending":
-            return confession.status === "pending";
-          case "approved":
-            return confession.status === "approved";
-          default:
-            return true;
-        }
-      });
+    if (!dashboardOverview) {
+      return {
+        total: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+        totalUsers: 0,
+        today: 0,
+        yesterday: 0,
+        lastWeekend: 0,
+      };
     }
 
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(
-        (confession) => confession.status === statusFilter
-      );
+    return {
+      total: dashboardOverview.total_confessions,
+      pending: dashboardOverview.posts_by_status.pending,
+      approved: dashboardOverview.posts_by_status.approved,
+      rejected: dashboardOverview.posts_by_status.rejected,
+      totalUsers: dashboardOverview.total_users,
+      today: 0, // These are not relevant anymore but needed for compatibility
+      yesterday: 0,
+      lastWeekend: 0,
+    };
+  }, [dashboardOverview]);
+
+  // Get current posts based on active tab
+  const getCurrentPosts = (): Post[] => {
+    switch (activeTab) {
+      case "pending":
+        return pendingPosts;
+      case "approved":
+        return approvedPosts;
+      case "rejected":
+        return rejectedPosts;
+      default:
+        return allPosts;
+    }
+  };
+
+  const currentPosts = getCurrentPosts();
+  
+  // Filter posts based on search and status filter
+  const filteredPosts = useMemo(() => {
+    let filtered = currentPosts;
+
+    if (statusFilter !== "all" && activeTab === "all") {
+      filtered = filtered.filter(post => post.status === statusFilter);
     }
 
     if (searchTerm) {
-      filtered = filtered.filter(
-        (confession) =>
-          confession.description
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          confession.userName
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          confession.hashtag.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (confession.adminHashtag &&
-            confession.adminHashtag
-              .toLowerCase()
-              .includes(searchTerm.toLowerCase())) ||
-          (confession.adminComment &&
-            confession.adminComment
-              .toLowerCase()
-              .includes(searchTerm.toLowerCase()))
+      filtered = filtered.filter(post =>
+        post.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        post.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        post.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
 
     return filtered;
-  }, [confessions, activeTab, statusFilter, searchTerm]);
+  }, [currentPosts, statusFilter, searchTerm, activeTab]);
+
+  // Transform posts to confessions for existing components
+  const confessions = filteredPosts.map(transformPostToConfession);
 
   // Pagination
-  const totalPages = Math.ceil(filteredConfessions.length / itemsPerPage);
-  const paginatedConfessions = filteredConfessions.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  const handleStatusChange = (id: number, status: "approved" | "rejected") => {
-    setConfessions((prev) =>
-      prev.map((confession) =>
-        confession.id === id ? { ...confession, status } : confession
-      )
-    );
-  };
-
-  const handleWarning = (id: number, message: string) => {
-    setConfessions((prev) =>
-      prev.map((confession) =>
-        confession.id === id
-          ? { ...confession, hasWarning: true, warningMessage: message }
-          : confession
-      )
-    );
-  };
-
-  const handleBan = (id: number, reason: string) => {
-    setConfessions((prev) =>
-      prev.map((confession) =>
-        confession.id === id
-          ? { ...confession, isBanned: true, banReason: reason }
-          : confession
-      )
-    );
-  };
-
-  const handleBulkApprove = () => {
-    setConfessions((prev) =>
-      prev.map((confession) =>
-        selectedConfessions.includes(confession.id)
-          ? { ...confession, status: "approved" as const }
-          : confession
-      )
-    );
-    setSelectedConfessions([]);
-  };
-
-  const handleBulkReject = () => {
-    setConfessions((prev) =>
-      prev.map((confession) =>
-        selectedConfessions.includes(confession.id)
-          ? { ...confession, status: "rejected" as const }
-          : confession
-      )
-    );
-    setSelectedConfessions([]);
-  };
-
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedConfessions(paginatedConfessions.map((c) => c.id));
-    } else {
-      setSelectedConfessions([]);
+  const getCurrentPagination = () => {
+    switch (activeTab) {
+      case "pending":
+        return pagination.pendingPosts;
+      case "approved":
+        return pagination.approvedPosts;
+      case "rejected":
+        return pagination.rejectedPosts;
+      default:
+        return pagination.allPosts;
     }
   };
 
-  const handleView = (confession: Confession) => {
-    setSelectedConfession(confession);
-    setIsModalOpen(true);
-  };
+  const currentPagination = getCurrentPagination();
+  const totalPages = currentPagination?.last_page || Math.ceil(confessions.length / itemsPerPage);
+  const paginatedConfessions = confessions; // Server-side pagination, no client-side slicing needed
 
+  // Handlers
+  const handleStatusChange = useCallback(async (id: number, status: "approved" | "rejected") => {
+    if (status === "approved") {
+      // For approval, open modal to confirm
+      setPostToApprove(id);
+      setIsBulkApproval(false);
+      setIsApprovalModalOpen(true);
+    } else {
+      // For rejection, open modal to get reason
+      setPostToReject(id);
+      setIsBulkRejection(false);
+      setIsRejectionModalOpen(true);
+    }
+  }, []);
+  
+  // Handle approval with optional note
+  const handleApproveConfirmation = useCallback(async () => {
+    if (!postToApprove && !isBulkApproval) {
+      return;
+    }
+    
+    try {
+      if (isBulkApproval) {
+        // Handle bulk approval
+        await Promise.all(
+          selectedPosts.map(id => dispatch(approvePost({ postId: id })).unwrap())
+        );
+        setSelectedPosts([]);
+      } else {
+        // Handle single post approval
+        await dispatch(approvePost({ postId: postToApprove! })).unwrap();
+      }
+      
+      // Refresh data after status change
+      dispatch(fetchDashboardOverview());
+      
+      // If we're on a specific tab and this was the last item, go back to page 1
+      if (activeTab !== "all" && paginatedConfessions.length === 1 && currentPage > 1) {
+        setCurrentPage(1);
+      } else {
+        refreshPostsData();
+      }
+      
+      // Close the approval modal
+      setIsApprovalModalOpen(false);
+      setPostToApprove(null);
+      setIsBulkApproval(false);
+    } catch (error: unknown) {
+      console.error("Failed to approve post:", error);
+    }
+  }, [dispatch, postToApprove, isBulkApproval, selectedPosts, refreshPostsData, activeTab, paginatedConfessions.length, currentPage]);
+
+  // Handle rejection with reason
+  const handleRejectWithReason = useCallback(async (reason: string) => {
+    if (!postToReject && !isBulkRejection) {
+      return;
+    }
+    
+    try {
+      if (isBulkRejection) {
+        // Handle bulk rejection
+        await Promise.all(
+          selectedPosts.map(id => dispatch(rejectPost({ postId: id, admin_note: reason })).unwrap())
+        );
+        setSelectedPosts([]);
+      } else {
+        // Handle single post rejection
+        await dispatch(rejectPost({ postId: postToReject!, admin_note: reason })).unwrap();
+      }
+      
+      // Refresh data after status change
+      dispatch(fetchDashboardOverview());
+      
+      // If we're on a specific tab and this was the last item, go back to page 1
+      if (activeTab !== "all" && paginatedConfessions.length === 1 && currentPage > 1) {
+        setCurrentPage(1);
+      } else {
+        refreshPostsData();
+      }
+      
+      // Close the rejection modal
+      setIsRejectionModalOpen(false);
+      setPostToReject(null);
+      setIsBulkRejection(false);
+    } catch (error: unknown) {
+      console.error("Failed to reject post:", error);
+    }
+  }, [dispatch, postToReject, isBulkRejection, selectedPosts, refreshPostsData, activeTab, paginatedConfessions.length, currentPage]);
+
+  const handleBulkApprove = useCallback(() => {
+    if (selectedPosts.length === 0) return;
+    
+    // Open approval modal for bulk approval
+    setIsBulkApproval(true);
+    setPostToApprove(null);
+    setIsApprovalModalOpen(true);
+  }, [selectedPosts]);
+
+  const handleBulkReject = useCallback(() => {
+    if (selectedPosts.length === 0) return;
+    
+    // Open rejection modal for bulk rejection
+    setIsBulkRejection(true);
+    setPostToReject(null);
+    setIsRejectionModalOpen(true);
+  }, [selectedPosts]);
+
+  const handleSelectAll = useCallback((checked: boolean) => {
+    if (checked) {
+      setSelectedPosts(paginatedConfessions.map(c => c.id));
+    } else {
+      setSelectedPosts([]);
+    }
+  }, [paginatedConfessions]);
+
+  const handleView = useCallback((confession: Confession) => {
+    setSelectedPost(confession);
+    setIsModalOpen(true);
+  }, []);
+
+  const handleTabChange = useCallback((tabId: string) => {
+    setActiveTab(tabId);
+    setCurrentPage(1);
+    setSelectedPosts([]);
+    setIsRefreshing(true);
+    
+    // Small timeout to ensure the loading state is visible
+    setTimeout(() => {
+      switch (tabId) {
+        case "pending":
+          dispatch(fetchPendingPosts({ 
+            page: 1, 
+            per_page: itemsPerPage,
+            search: searchTerm || undefined
+          }));
+          break;
+        case "approved":
+          dispatch(fetchApprovedPosts({ 
+            page: 1, 
+            per_page: itemsPerPage,
+            search: searchTerm || undefined
+          }));
+          break;
+        case "rejected":
+          dispatch(fetchRejectedPosts({ 
+            page: 1, 
+            per_page: itemsPerPage,
+            search: searchTerm || undefined
+          }));
+          break;
+        default:
+          dispatch(fetchAllPosts({ 
+            page: 1, 
+            per_page: itemsPerPage, 
+            search: searchTerm || undefined 
+          }));
+          break;
+      }
+      
+      // Set refreshing to false after a short delay to ensure smooth transition
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 500);
+    }, 300);
+  }, [dispatch, itemsPerPage, searchTerm]);
+
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
+    setIsRefreshing(true);
+    
+    // Small timeout to ensure the loading state is visible
+    setTimeout(() => {
+      switch (activeTab) {
+        case "pending":
+          dispatch(fetchPendingPosts({ 
+            page, 
+            per_page: itemsPerPage,
+            search: searchTerm || undefined
+          }));
+          break;
+        case "approved":
+          dispatch(fetchApprovedPosts({ 
+            page, 
+            per_page: itemsPerPage,
+            search: searchTerm || undefined
+          }));
+          break;
+        case "rejected":
+          dispatch(fetchRejectedPosts({ 
+            page, 
+            per_page: itemsPerPage,
+            search: searchTerm || undefined
+          }));
+          break;
+        default:
+          dispatch(fetchAllPosts({ 
+            page, 
+            per_page: itemsPerPage, 
+            search: searchTerm || undefined 
+          }));
+          break;
+      }
+      
+      // Set refreshing to false after a short delay to ensure smooth transition
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 500);
+      
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 300);
+  }, [dispatch, activeTab, itemsPerPage, searchTerm]);
+
+  // Updated tabs without time-based filters
   const tabs = [
-    { id: "all", label: "All Confessions", count: stats.total },
-    { id: "today", label: "Today", count: stats.today },
-    { id: "yesterday", label: "Yesterday", count: stats.yesterday },
-    { id: "lastWeekend", label: "Last Weekend", count: stats.lastWeekend },
+    { id: "all", label: "All Posts", count: stats.total },
     { id: "pending", label: "Pending", count: stats.pending },
     { id: "approved", label: "Approved", count: stats.approved },
+    { id: "rejected", label: "Rejected", count: stats.rejected },
   ];
+
+  // Function to handle search with debounce
+  const handleSearch = useCallback((value: string) => {
+    setSearchTerm(value);
+    
+    // Only trigger loading state if there's an actual search
+    if (value.length > 0) {
+      setIsRefreshing(true);
+    }
+    
+    // Debounce search requests
+    const timeoutId = setTimeout(() => {
+      switch (activeTab) {
+        case "pending":
+          dispatch(fetchPendingPosts({ 
+            page: 1, 
+            per_page: itemsPerPage,
+            search: value || undefined
+          }));
+          break;
+        case "approved":
+          dispatch(fetchApprovedPosts({ 
+            page: 1, 
+            per_page: itemsPerPage,
+            search: value || undefined
+          }));
+          break;
+        case "rejected":
+          dispatch(fetchRejectedPosts({ 
+            page: 1, 
+            per_page: itemsPerPage,
+            search: value || undefined
+          }));
+          break;
+        default:
+          dispatch(fetchAllPosts({ 
+            page: 1, 
+            per_page: itemsPerPage, 
+            search: value || undefined 
+          }));
+          break;
+      }
+      setCurrentPage(1);
+      
+      // Turn off refreshing state after a delay
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 300);
+    }, 500); // 500ms debounce
+    
+    return () => clearTimeout(timeoutId);
+  }, [dispatch, activeTab, itemsPerPage]);
+
+  // Loading state
+  if (loading.fetchDashboardOverview && !dashboardOverview) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen animate-page-load">
@@ -211,17 +566,17 @@ export default function ConfessionDashboard() {
       <div className="animate-header-slide">
         <div className="mx-auto">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            {/* Title Section - now aligned left */}
+            {/* Title Section */}
             <div className="flex flex-col text-left px-4 py-6 space-y-2">
               <h1 className="text-3xl sm:text-2xl lg:text-4xl font-bold text-black">
-                Confession Dashboard
+                Posts Management
               </h1>
               <p className="font-light sm:text-lg text-black">
-                Manage and review student confessions
+                Manage and review student posts
               </p>
             </div>
 
-            {/* Button Section */}
+            {/* View Mode Toggle */}
             <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
               <Button
                 variant={viewMode === "table" ? "default" : "outline"}
@@ -258,10 +613,7 @@ export default function ConfessionDashboard() {
             {tabs.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  setCurrentPage(1);
-                }}
+                onClick={() => handleTabChange(tab.id)}
                 className={`whitespace-nowrap py-2 sm:py-3 px-1 border-b-2 font-medium text-xs sm:text-sm flex items-center gap-2 transition-all duration-200 ${
                   activeTab === tab.id
                     ? "border-blue-500 text-blue-600"
@@ -292,90 +644,83 @@ export default function ConfessionDashboard() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <Input
-                  placeholder="Search confessions..."
+                  placeholder="Search posts..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => handleSearch(e.target.value)}
                   className="pl-10 w-full sm:w-80 text-gray-600 bg-white"
                 />
               </div>
 
               {/* Bulk Actions */}
-              {selectedConfessions.length > 0 && (
+              {selectedPosts.length > 0 && (
                 <div className="flex gap-2 animate-slide-up">
                   <Button
                     size="sm"
                     onClick={handleBulkApprove}
+                    disabled={loading.approvePost}
                     className="bg-green-600 hover:bg-green-700 text-white flex-1 sm:flex-none"
                   >
                     <Check className="h-4 w-4 mr-1" />
-                    Approve ({selectedConfessions.length})
+                    Approve ({selectedPosts.length})
                   </Button>
                   <Button
                     size="sm"
                     variant="destructive"
                     onClick={handleBulkReject}
+                    disabled={loading.rejectPost}
                     className="flex-1 sm:flex-none"
                   >
                     <X className="h-4 w-4 mr-1" />
-                    Reject ({selectedConfessions.length})
+                    Reject with Reason ({selectedPosts.length})
                   </Button>
                 </div>
               )}
             </div>
-
-            <div className="flex gap-2 w-full lg:w-auto">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 lg:flex-none"
-                  >
-                    <Filter className="h-4 w-4 mr-2" />
-                    Filter
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => setStatusFilter("all")}>
-                    All Status
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setStatusFilter("pending")}>
-                    Pending
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setStatusFilter("approved")}>
-                    Approved
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setStatusFilter("rejected")}>
-                    Rejected
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
           </div>
         </div>
 
+        {/* Error Display */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <p className="text-red-800">{error}</p>
+          </div>
+        )}
+
+        {/* Loading States */}
+        {(loading.fetchPendingPosts || loading.fetchApprovedPosts || loading.fetchRejectedPosts || loading.fetchAllPosts) && (
+          <div className="flex justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          </div>
+        )}
+
         {/* Content */}
-        <div className="animate-content-reveal stagger-4">
+        <div className="animate-content-reveal stagger-4 relative">
+          {/* Refreshing overlay */}
+          {isRefreshing && (
+            <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-10 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-3">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <p className="text-sm text-blue-600 font-medium">Updating list...</p>
+              </div>
+            </div>
+          )}
+          
           {viewMode === "table" ? (
             <ConfessionTableModern
               confessions={paginatedConfessions}
-              selectedConfessions={selectedConfessions}
-              onSelectionChange={setSelectedConfessions}
+              selectedConfessions={selectedPosts}
+              onSelectionChange={setSelectedPosts}
               onSelectAll={handleSelectAll}
               onStatusChange={handleStatusChange}
               onView={handleView}
-              onWarning={handleWarning}
-              onBan={handleBan}
             />
           ) : (
             <ConfessionCards
               confessions={paginatedConfessions}
-              selectedConfessions={selectedConfessions}
-              onSelectionChange={setSelectedConfessions}
+              selectedConfessions={selectedPosts}
+              onSelectionChange={setSelectedPosts}
               onStatusChange={handleStatusChange}
               onView={handleView}
-              onWarning={handleWarning}
-              onBan={handleBan}
             />
           )}
         </div>
@@ -386,7 +731,7 @@ export default function ConfessionDashboard() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
               disabled={currentPage === 1}
               className="w-full sm:w-auto"
             >
@@ -404,7 +749,7 @@ export default function ConfessionDashboard() {
                     key={page}
                     variant={isActive ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setCurrentPage(page)}
+                    onClick={() => handlePageChange(page)}
                     className={`w-8 h-8 p-0 flex-shrink-0 ${
                       isActive ? "bg-black text-white hover:bg-black" : ""
                     }`}
@@ -419,7 +764,7 @@ export default function ConfessionDashboard() {
                   <Button
                     variant={currentPage === totalPages ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setCurrentPage(totalPages)}
+                    onClick={() => handlePageChange(totalPages)}
                     className={`w-8 h-8 p-0 flex-shrink-0 ${
                       currentPage === totalPages
                         ? "bg-black text-white hover:bg-black"
@@ -435,9 +780,7 @@ export default function ConfessionDashboard() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() =>
-                setCurrentPage(Math.min(totalPages, currentPage + 1))
-              }
+              onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
               className="w-full sm:w-auto"
             >
@@ -451,12 +794,38 @@ export default function ConfessionDashboard() {
       {/* Modal */}
       <div className="animate-modal-entrance">
         <ConfessionModal
-          confession={selectedConfession}
+          confession={selectedPost}
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           onStatusChange={handleStatusChange}
         />
       </div>
+
+      {/* Rejection Reason Modal */}
+      <RejectionReasonModal
+        isOpen={isRejectionModalOpen}
+        onClose={() => {
+          setIsRejectionModalOpen(false);
+          setPostToReject(null);
+          setIsBulkRejection(false);
+        }}
+        onSubmit={handleRejectWithReason}
+        isBulk={isBulkRejection}
+        isLoading={loading.rejectPost}
+      />
+
+      {/* Approval Confirmation Modal */}
+      <ApprovalConfirmationModal
+        isOpen={isApprovalModalOpen}
+        onClose={() => {
+          setIsApprovalModalOpen(false);
+          setPostToApprove(null);
+          setIsBulkApproval(false);
+        }}
+        onSubmit={handleApproveConfirmation}
+        isBulk={isBulkApproval}
+        isLoading={loading.approvePost}
+      />
     </div>
   );
 }

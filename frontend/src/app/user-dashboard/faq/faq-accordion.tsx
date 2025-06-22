@@ -3,14 +3,10 @@
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Plus, Minus } from "lucide-react"
+import { FAQ } from "@/store/types/faq"
 
 interface FaqAccordionProps {
-  faq: {
-    id: number
-    question: string
-    answer: string
-    category: string
-  }
+  faq: FAQ
   index: number
 }
 

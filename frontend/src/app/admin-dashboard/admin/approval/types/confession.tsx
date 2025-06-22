@@ -1,6 +1,7 @@
 export interface Confession {
     id: number
     userName: string
+    title: string
     description: string
     image?: string
     hashtag: string
@@ -16,6 +17,9 @@ export interface Confession {
     isBanned?: boolean
     warningMessage?: string
     banReason?: string
+    tags: string[]
+    likeCount: number
+    commentCount: number
   }
   
   export interface ConfessionStats {

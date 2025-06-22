@@ -8,16 +8,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   Check,
   Eye,
-  ExternalLink,
   MoreHorizontal,
   X,
-  AlertTriangle,
-  Ban,
   ImageIcon,
 } from "lucide-react"
 import Image from "next/image"
 import type { Confession } from "./types/confession"
-import { getStatusColor, getFeelingEmoji, formatDate } from "./utils/helper"
+import { getStatusColor, formatDate } from "./utils/helper"
 
 interface ConfessionTableModernProps {
   confessions: Confession[]
@@ -26,8 +23,6 @@ interface ConfessionTableModernProps {
   onSelectAll: (checked: boolean) => void
   onStatusChange: (id: number, status: "approved" | "rejected") => void
   onView: (confession: Confession) => void
-  onWarning: (id: number, message: string) => void
-  onBan: (id: number, reason: string) => void
 }
 
 export function ConfessionTableModern({
@@ -37,8 +32,6 @@ export function ConfessionTableModern({
   onSelectAll,
   onStatusChange,
   onView,
-  onWarning,
-  onBan,
 }: ConfessionTableModernProps) {
   const allSelected = confessions.length > 0 && selectedConfessions.length === confessions.length
   const someSelected = selectedConfessions.length > 0 && selectedConfessions.length < confessions.length
@@ -73,10 +66,11 @@ export function ConfessionTableModern({
                 </div>
               </TableHead>
               <TableHead className="font-semibold text-gray-700 px-6 py-4 hidden md:table-cell">Image</TableHead>
-              <TableHead className="font-semibold text-gray-700 px-6 py-4 hidden lg:table-cell">Description</TableHead>
-              <TableHead className="font-semibold text-gray-700 px-6 py-4 hidden sm:table-cell">Link</TableHead>
+              <TableHead className="font-semibold text-gray-700 px-6 py-4 hidden lg:table-cell">Title</TableHead>
+              <TableHead className="font-semibold text-gray-700 px-6 py-4 hidden xl:table-cell">Description</TableHead>
+              <TableHead className="font-semibold text-gray-700 px-6 py-4 hidden sm:table-cell">Tags</TableHead>
               <TableHead className="font-semibold text-gray-700 px-6 py-4">Status</TableHead>
-              <TableHead className="font-semibold text-gray-700 px-6 py-4 hidden md:table-cell">Feeling</TableHead>
+              <TableHead className="font-semibold text-gray-700 px-6 py-4 hidden md:table-cell">Engagement</TableHead>
               <TableHead className="font-semibold text-gray-700 px-6 py-4 hidden lg:table-cell">Date</TableHead>
               <TableHead className="w-12 px-6 py-4"></TableHead>
             </TableRow>
@@ -91,7 +85,7 @@ export function ConfessionTableModern({
                   key={confession.id}
                   className={`border-b border-gray-100 hover:bg-gray-50 transition-all duration-200 animate-slide-up ${
                     isSelected ? "bg-blue-50" : ""
-                  } ${confession.hasWarning ? "bg-yellow-50" : ""} ${confession.isBanned ? "bg-red-50" : ""}`}
+                  }`}
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
                   <TableCell className="px-6 py-4">
@@ -136,18 +130,32 @@ export function ConfessionTableModern({
 
                   <TableCell className="px-6 py-4 hidden lg:table-cell">
                     <div className="max-w-xs">
+                      <p className="text-sm font-semibold text-gray-900 line-clamp-1">{confession.title}</p>
+                    </div>
+                  </TableCell>
+
+                  <TableCell className="px-6 py-4 hidden xl:table-cell">
+                    <div className="max-w-xs">
                       <p className="text-sm text-gray-700 line-clamp-2">{confession.description}</p>
                     </div>
                   </TableCell>
 
                   <TableCell className="px-6 py-4 hidden sm:table-cell">
-                    {confession.link ? (
-                      <div className="flex items-center gap-2 text-blue-600">
-                        <ExternalLink className="h-4 w-4" />
-                        <span className="text-sm font-medium">Yes</span>
+                    {confession.tags && confession.tags.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {confession.tags.slice(0, 2).map((tag: string, index: number) => (
+                          <Badge key={index} variant="secondary" className="text-xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                        {confession.tags.length > 2 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{confession.tags.length - 2}
+                          </Badge>
+                        )}
                       </div>
                     ) : (
-                      <span className="text-sm text-gray-400">No</span>
+                      <span className="text-sm text-gray-400">No tags</span>
                     )}
                   </TableCell>
 
@@ -158,9 +166,15 @@ export function ConfessionTableModern({
                   </TableCell>
 
                   <TableCell className="px-6 py-4 hidden md:table-cell">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">{getFeelingEmoji(confession.feeling)}</span>
-                      <span className="text-sm text-gray-600">{confession.feeling}</span>
+                    <div className="flex items-center gap-3 text-sm text-gray-600">
+                      <div className="flex items-center gap-1">
+                        <span className="text-red-500">❤</span>
+                        <span>{confession.likeCount}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-blue-500">💬</span>
+                        <span>{confession.commentCount}</span>
+                      </div>
                     </div>
                   </TableCell>
 
@@ -198,23 +212,9 @@ export function ConfessionTableModern({
                             onClick={() => onStatusChange(confession.id, "rejected")}
                           >
                             <X className="h-4 w-4 mr-2" />
-                            Reject
+                            Reject with Reason
                           </DropdownMenuItem>
                         )}
-                        <DropdownMenuItem
-                          className="text-yellow-600"
-                          onClick={() => onWarning(confession.id, "Content requires review")}
-                        >
-                          <AlertTriangle className="h-4 w-4 mr-2" />
-                          Send Warning
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-red-600"
-                          onClick={() => onBan(confession.id, "Inappropriate content")}
-                        >
-                          <Ban className="h-4 w-4 mr-2" />
-                          Ban User
-                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>

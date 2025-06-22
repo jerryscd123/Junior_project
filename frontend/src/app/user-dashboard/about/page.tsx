@@ -13,11 +13,14 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import TeamSection from "./team-section";
-import profile from "@/assets/user.jpg";
-import image1 from "@/assets/user.jpg";
-import image2 from "@/assets/user.jpg";
-import image3 from "@/assets/user.jpg";
-import image4 from "@/assets/user.jpg";
+
+// Define new image URLs
+const heroImages = {
+  image1: "https://images.unsplash.com/photo-1519452635265-7b1fbfd1e4e0?q=80&w=1974&auto=format&fit=crop&ixlib=rb-4.1.0",
+  image2: "https://images.unsplash.com/photo-1590012314607-cda9d9b699ae?q=80&w=2071&auto=format&fit=crop&ixlib=rb-4.1.0",
+  image3: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0",
+  image4: "https://images.unsplash.com/photo-1523580846011-d3a5bc25702b?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.1.0"
+};
 
 export default function AboutPage() {
   return (
@@ -44,7 +47,7 @@ function HeroSection() {
     className="aspect-[3/4] relative shadow-lg shadow-gray-600 overflow-hidden rounded-2xl"
   >
     <Image
-      src={image2}
+              src={heroImages.image1}
       alt="Students discussing"
       width={300}
       height={400}
@@ -59,7 +62,7 @@ function HeroSection() {
     className="aspect-[3/4] relative shadow-lg shadow-gray-600 overflow-hidden rounded-2xl mt-12"
   >
     <Image
-      src={image1}
+              src={heroImages.image2}
       alt="Students collaborating"
       width={300}
       height={400}
@@ -74,7 +77,7 @@ function HeroSection() {
     className="aspect-[3/4] relative shadow-lg shadow-gray-600 overflow-hidden rounded-2xl"
   >
     <Image
-      src={image3}
+              src={heroImages.image3}
       alt="University campus"
       width={300}
       height={400}
@@ -89,7 +92,7 @@ function HeroSection() {
     className="aspect-[3/4] relative shadow-lg shadow-gray-600 overflow-hidden rounded-2xl mt-12"
   >
     <Image
-      src={image4}
+              src={heroImages.image4}
       alt="Student group"
       width={300}
       height={400}
@@ -119,7 +122,6 @@ function HeroSection() {
     </section>
   );
 }
-<TeamSection />;
 
 function StatsSection() {
   const stats = [
@@ -214,16 +216,15 @@ function StatsSection() {
     </section>
   );
 }
-<TeamSection />;
 
 function NewsletterSection() {
   return (
     <section className="py-20 rounded-3xl bg-[#1d2b7d]">
       <div className="container mx-auto px-4 relative">
-        <div className="absolute -top-10 -left-10 w- h-32 rounded-lg rotate-12 overflow-hidden hidden md:block">
+        <div className="absolute -top-10 -left-10 w-32 h-32 rounded-lg rotate-12 overflow-hidden hidden md:block">
           <Image
-            src={profile}
-            alt="Student profile"
+            src={heroImages.image2}
+            alt="Students collaborating"
             width={128}
             height={128}
             className="w-full h-full object-cover"
@@ -232,8 +233,8 @@ function NewsletterSection() {
 
         <div className="absolute -bottom-10 -right-10 w-32 h-32 rounded-lg -rotate-12 overflow-hidden hidden md:block">
           <Image
-            src={profile}
-            alt="Student profile"
+            src={heroImages.image3}
+            alt="University campus"
             width={128}
             height={128}
             className="w-full h-full object-cover"

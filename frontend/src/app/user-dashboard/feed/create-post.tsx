@@ -11,10 +11,20 @@ import { ImageIcon, Link, Smile, X } from 'lucide-react'
 import { cn } from "@/lib/utils"
 import Image from "next/image"
 import user from "@/assets/user.jpg"
+import { 
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select"
 
 interface CreatePostProps {
   onPostCreated: (post: { 
     id: string; 
+    title: string;
     content: string; 
     hashtags: string[]; 
     feeling: string; 
@@ -28,14 +38,23 @@ interface CreatePostProps {
   }) => void
 }
 
+interface ErrorState {
+  title?: string[];
+  content?: string[];
+}
+
 export default function CreatePost({ onPostCreated }: CreatePostProps) {
+  const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
   const [hashtags, setHashtags] = useState("")
   const [feeling, setFeeling] = useState("")
   const [link, setLink] = useState("")
   const [images, setImages] = useState<string[]>([])
   const [isExpanded, setIsExpanded] = useState(false)
+  const [errors, setErrors] = useState<ErrorState>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [customFeeling, setCustomFeeling] = useState("")
+  const [selectedFeeling, setSelectedFeeling] = useState("")
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -48,11 +67,43 @@ export default function CreatePost({ onPostCreated }: CreatePostProps) {
     setImages(images.filter((_, i) => i !== index))
   }
 
+  const validateForm = (): boolean => {
+    const newErrors: ErrorState = {}
+    
+    if (!title || title.length < 5) {
+      newErrors.title = ["Title must be at least 5 characters long."]
+    }
+    
+    if (!content || content.length < 10) {
+      newErrors.content = ["Content must be at least 10 characters long."]
+    }
+    
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleFeelingChange = (value: string) => {
+    if (value === "custom") {
+      setSelectedFeeling("custom")
+      // Keep current custom feeling
+    } else {
+      setSelectedFeeling(value)
+      setFeeling(value)
+      setCustomFeeling("")
+    }
+  }
+
+  const handleCustomFeelingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCustomFeeling(e.target.value)
+    setFeeling(e.target.value)
+  }
+
   const handleSubmit = () => {
-    if (!content.trim() && images.length === 0) return
+    if (!validateForm()) return
 
     const newPost = {
       id: Date.now().toString(),
+      title,
       content,
       hashtags: hashtags.split(" ").filter((tag) => tag.startsWith("#")),
       feeling,
@@ -68,24 +119,47 @@ export default function CreatePost({ onPostCreated }: CreatePostProps) {
     onPostCreated(newPost)
 
     // Reset form
+    setTitle("")
     setContent("")
     setHashtags("")
     setFeeling("")
     setLink("")
     setImages([])
+    setErrors({})
     setIsExpanded(false)
   }
 
   return (
     <Card className="mb-6 overflow-hidden border-gray-200 dark:border-gray-700 shadow-sm">
       <CardContent className="p-4">
+        <div className="mb-3">
+          <Input
+            placeholder="Post title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className={cn(
+              "text-lg font-medium border-none pl-0 focus-visible:ring-0",
+              errors.title ? "border-red-500 focus-visible:ring-red-500" : ""
+            )}
+          />
+          {errors.title && (
+            <p className="mt-1 text-sm text-red-500">{errors.title[0]}</p>
+          )}
+        </div>
+
         <Textarea
           placeholder="Share your university experience anonymously..."
           value={content}
           onChange={(e) => setContent(e.target.value)}
           onFocus={() => setIsExpanded(true)}
-          className="min-h-[80px] resize-none border-none focus:ring-0 p-0 text-base"
+          className={cn(
+            "min-h-[80px] resize-none border-none focus-visible:ring-0 p-0 pl-0 text-base",
+            errors.content ? "border-red-500 focus-visible:ring-red-500" : ""
+          )}
         />
+        {errors.content && (
+          <p className="mt-1 text-sm text-red-500">{errors.content[0]}</p>
+        )}
 
         {isExpanded && (
           <div className="space-y-4 mt-4">
@@ -121,12 +195,33 @@ export default function CreatePost({ onPostCreated }: CreatePostProps) {
               </div>
               <div>
                 <label className="text-lg text-black">Feeling</label>
-                <Input
-                  placeholder="stressed, excited, confused..."
-                  value={feeling}
-                  onChange={(e) => setFeeling(e.target.value)}
-                  className="mt-1"
-                />
+                <div className="mt-1 space-y-2">
+                  <Select value={selectedFeeling} onValueChange={handleFeelingChange}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="How are you feeling?" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Select a feeling</SelectLabel>
+                        <SelectItem value="happy">😊 Happy</SelectItem>
+                        <SelectItem value="sad">😢 Sad</SelectItem>
+                        <SelectItem value="excited">🎉 Excited</SelectItem>
+                        <SelectItem value="stressed">😰 Stressed</SelectItem>
+                        <SelectItem value="motivated">💪 Motivated</SelectItem>
+                        <SelectItem value="tired">😴 Tired</SelectItem>
+                        <SelectItem value="custom">✏️ Custom feeling...</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  
+                  {selectedFeeling === "custom" && (
+                    <Input
+                      placeholder="Enter your feeling..."
+                      value={customFeeling}
+                      onChange={handleCustomFeelingChange}
+                    />
+                  )}
+                </div>
               </div>
             </div>
 

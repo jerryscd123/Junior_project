@@ -12,17 +12,10 @@ import {
   ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
+import { Notification } from "@/store/types/notification";
 
 interface NotificationItemProps {
-  notification: {
-    id: number;
-    title: string;
-    message: string;
-    type: "announcement" | "event" | "alert" | "update";
-    date: string;
-    isRead: boolean;
-    link?: string;
-  };
+  notification: Notification;
   onMarkAsRead: (id: number) => void;
   onDismiss: (id: number) => void;
   delay: number;
@@ -62,13 +55,17 @@ export default function NotificationItem({
 
   const getTypeIcon = () => {
     switch (notification.type) {
-      case "announcement":
+      case "admin_message":
         return <Megaphone className="h-5 w-5" />;
-      case "event":
+      case "comment":
         return <Calendar className="h-5 w-5" />;
-      case "alert":
+      case "like":
+        return <Info className="h-5 w-5" />;
+      case "post_approved":
+      case "post_rejected":
         return <AlertTriangle className="h-5 w-5" />;
-      case "update":
+      case "comment_approved":
+      case "comment_rejected":
         return <Info className="h-5 w-5" />;
       default:
         return <Info className="h-5 w-5" />;
@@ -77,21 +74,25 @@ export default function NotificationItem({
 
   const getTypeColor = () => {
     switch (notification.type) {
-      case "announcement":
+      case "admin_message":
         return "bg-purple-100 text-purple-600";
-      case "event":
+      case "comment":
         return "bg-blue-100 text-blue-600";
-      case "alert":
-        return "bg-amber-100 text-amber-600";
-      case "update":
+      case "like":
         return "bg-emerald-100 text-emerald-600";
+      case "post_approved":
+      case "comment_approved":
+        return "bg-green-100 text-green-600";
+      case "post_rejected":
+      case "comment_rejected":
+        return "bg-red-100 text-red-600";
       default:
         return "bg-slate-100 text-slate-600";
     }
   };
 
   const handleClick = () => {
-    if (!notification.isRead) {
+    if (!notification.is_read) {
       onMarkAsRead(notification.id);
     }
   };
@@ -106,7 +107,7 @@ export default function NotificationItem({
       onMouseLeave={() => setIsHovered(false)}
       onClick={handleClick}
       className={`bg-white rounded-xl shadow-sm overflow-hidden transition-all ${
-        notification.isRead
+        notification.is_read
           ? "border border-slate-100"
           : "border-l-4 border-[#1d2b7d] shadow-md"
       }`}
@@ -122,21 +123,21 @@ export default function NotificationItem({
           <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-1 sm:mb-0">
             <h3
               className={`font-medium ${
-                notification.isRead ? "text-slate-700" : "text-[#1d2b7d]"
+                notification.is_read ? "text-slate-700" : "text-[#1d2b7d]"
               } mb-1 sm:mb-0`}
             >
               {notification.title}
             </h3>
             <span className="text-xs text-slate-500 sm:ml-4 flex-shrink-0">
-              {formatDate(notification.date)}
+              {formatDate(notification.created_at)}
             </span>
           </div>
           <p className="text-slate-600 text-sm mb-3">{notification.message}</p>
 
           <div className="flex items-center justify-between">
-            {notification.link ? (
+            {notification.url ? (
               <Link
-                href={notification.link}
+                href={notification.url}
                 className="text-[#1d2b7d] text-sm font-medium flex items-center hover:underline"
               >
                 View details
@@ -151,7 +152,7 @@ export default function NotificationItem({
                 isHovered ? "opacity-100" : "opacity-0"
               }`}
             >
-              {!notification.isRead && (
+              {!notification.is_read && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();

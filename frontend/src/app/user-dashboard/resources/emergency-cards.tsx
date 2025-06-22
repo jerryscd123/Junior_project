@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import { Phone, AlertTriangle, Heart } from "lucide-react"
 import { motion } from "framer-motion"
 import Image from "next/image"
-import user from "@/assets/user.jpg"
 
 export default function EmergencyCards() {
   const [isVisible, setIsVisible] = useState(false)
@@ -20,7 +19,7 @@ export default function EmergencyCards() {
       number: "119",
       color: "bg-[#1d2b7d]",
       icon: AlertTriangle,
-      image: user,
+      image: "https://images.unsplash.com/photo-1599700403969-f77b3aa74837?q=80&w=1935&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
       delay: 0,
     },
     {
@@ -29,7 +28,7 @@ export default function EmergencyCards() {
       number: "017 276 477",
       color: "bg-[#1d2b7d]",
       icon: Phone,
-      image: user,
+      image: "https://images.unsplash.com/photo-1604881991720-f91add269bed?q=80&w=1974&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
       delay: 0.1,
     },
     {
@@ -38,7 +37,7 @@ export default function EmergencyCards() {
       number: "017 276 477",
       color: "bg-[#1d2b7d]",
       icon: Heart,
-      image: user,
+      image: "https://images.unsplash.com/photo-1638202993928-7267aad84c31?q=80&w=1974&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
       delay: 0.2,
     },
   ]

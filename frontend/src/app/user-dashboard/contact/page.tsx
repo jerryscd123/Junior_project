@@ -1,9 +1,10 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
-import { Mail, MapPin, Phone } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Mail, MapPin, Phone, AlertCircle, CheckCircle } from "lucide-react"
 import { motion } from "framer-motion"
+import { useUserMessages } from "@/store/hooks/useMessages"
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -12,18 +13,63 @@ export default function ContactPage() {
     subject: "",
     message: "",
   })
+  const [showSuccess, setShowSuccess] = useState(false)
+
+  // Redux integration for message handling
+  const { sendNewMessage, sendLoading, error, clearErrorState } = useUserMessages()
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("Form submitted:", formData)
-    setFormData({ name: "", email: "", subject: "", message: "" })
-    alert("Your message has been sent. We'll get back to you soon!")
+    
+    try {
+      // Clear any previous errors and success state
+      clearErrorState()
+      setShowSuccess(false)
+      
+      // Send message using Redux action
+      const result = await sendNewMessage({
+        subject: formData.subject,
+        content: formData.message,
+      })
+      
+      // Check if the action was successful
+      if (result.meta.requestStatus === 'fulfilled') {
+        // Reset form on success
+        setFormData({ name: "", email: "", subject: "", message: "" })
+        setShowSuccess(true)
+        // Hide success message after 5 seconds
+        setTimeout(() => setShowSuccess(false), 5000)
+      }
+    } catch (err) {
+      console.error("Error sending message:", err)
+    }
   }
+
+  // Clear error when component unmounts
+  useEffect(() => {
+    return () => {
+      clearErrorState()
+    }
+  }, [clearErrorState])
+
+  // Clear error when user starts typing
+  useEffect(() => {
+    if (error && (formData.subject || formData.message)) {
+      clearErrorState()
+    }
+  }, [formData.subject, formData.message, error, clearErrorState])
+
+  // Clear success message when user starts typing a new message
+  useEffect(() => {
+    if (showSuccess && (formData.subject || formData.message)) {
+      setShowSuccess(false)
+    }
+  }, [formData.subject, formData.message, showSuccess])
 
   return (
     <div className="min-h-screen bg-gradient-to-b rounded-2xl from-[#0d3895] to-[#ffff] py-16">
@@ -97,6 +143,36 @@ export default function ContactPage() {
               transition={{ duration: 0.6 }}
               viewport={{ once: true }}
             >
+              {/* Success Alert */}
+              {showSuccess && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center"
+                >
+                  <CheckCircle className="w-5 h-5 text-green-600 mr-3 flex-shrink-0" />
+                  <div className="text-green-800">
+                    <p className="font-medium">Message sent successfully!</p>
+                    <p className="text-sm text-green-600">We&apos;ll get back to you soon.</p>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Error Alert */}
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center"
+                >
+                  <AlertCircle className="w-5 h-5 text-red-600 mr-3 flex-shrink-0" />
+                  <div className="text-red-800">
+                    <p className="font-medium">Failed to send message</p>
+                    <p className="text-sm text-red-600">{error}</p>
+                  </div>
+                </motion.div>
+              )}
+
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
@@ -110,8 +186,9 @@ export default function ContactPage() {
                       value={formData.name}
                       onChange={handleChange}
                       required
-                      className="w-full px-4 py-3 border-b border-gray-300 focus:border-[#1d2b7d] focus:outline-none"
-                      placeholder="Pisethsambo"
+                      disabled={sendLoading}
+                      className="w-full px-4 py-3 border-b border-gray-300 focus:border-[#1d2b7d] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                      placeholder="Testing Name"
                     />
                   </div>
                   <div>
@@ -125,8 +202,9 @@ export default function ContactPage() {
                       value={formData.email}
                       onChange={handleChange}
                       required
-                      className="w-full px-4 py-3 border-b border-gray-300 focus:border-[#1d2b7d] focus:outline-none"
-                      placeholder="pisethsambo@example.com"
+                      disabled={sendLoading}
+                      className="w-full px-4 py-3 border-b border-gray-300 focus:border-[#1d2b7d] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                      placeholder="Name@example.com"
                     />
                   </div>
                 </div>
@@ -142,7 +220,8 @@ export default function ContactPage() {
                     value={formData.subject}
                     onChange={handleChange}
                     required
-                    className="w-full px-4 py-3 border-b border-gray-300 focus:border-[#1d2b7d] focus:outline-none"
+                    disabled={sendLoading}
+                    className="w-full px-4 py-3 border-b border-gray-300 focus:border-[#1d2b7d] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                     placeholder="I need help understanding a guideline"
                   />
                 </div>
@@ -158,8 +237,9 @@ export default function ContactPage() {
                       value={formData.message}
                       onChange={handleChange}
                       required
+                      disabled={sendLoading}
                       rows={4}
-                      className="w-full px-4 py-3 border-b border-gray-300 focus:border-[#1d2b7d] focus:outline-none resize-none"
+                      className="w-full px-4 py-3 border-b border-gray-300 focus:border-[#1d2b7d] focus:outline-none resize-none disabled:opacity-50 disabled:cursor-not-allowed"
                       placeholder="Write here your message"
                     ></textarea>
                     <div className="absolute bottom-3 right-3 w-6 h-6 text-yellow-500 pointer-events-none">
@@ -173,11 +253,12 @@ export default function ContactPage() {
                 <div>
                   <motion.button
                     type="submit"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="bg-[#1d2b7d] hover:bg-white hover:text-[#1d2b7d] border text-white font-medium py-3 px-8 rounded-md transition-colors duration-300"
+                    disabled={sendLoading}
+                    whileHover={{ scale: sendLoading ? 1 : 1.05 }}
+                    whileTap={{ scale: sendLoading ? 1 : 0.95 }}
+                    className="bg-[#1d2b7d] hover:bg-white hover:text-[#1d2b7d] border text-white font-medium py-3 px-8 rounded-md transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#1d2b7d] disabled:hover:text-white"
                   >
-                    Send Message
+                    {sendLoading ? "Sending..." : "Send Message"}
                   </motion.button>
                 </div>
               </form>

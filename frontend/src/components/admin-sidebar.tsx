@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { LayoutDashboard, Clock, Users, ShieldAlert, Bell, MessageSquare, BarChart3, ChevronLeft, X } from "lucide-react"
+import { LayoutDashboard, Clock, Users, Bell, MessageSquare, ChevronLeft, X, BookOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
@@ -15,10 +15,9 @@ const sidebarItems = [
   { title: "Dashboard", icon: LayoutDashboard, href: "/admin-dashboard/admin/dashboard" },
   { title: "Pending Posts", icon: Clock, href: "/admin-dashboard/admin/approval" },
   { title: "User Management", icon: Users, href: "/admin-dashboard/admin/user-management" },
-  { title: "Warnings & Bans", icon: ShieldAlert, href: "/warnings-bans" },
   { title: "Notifications", icon: Bell, href: "/admin-dashboard/admin/notification" },
-  { title: "Reports & Analytics", icon: BarChart3, href: "/reports" },
   { title: "Contact Us", icon: MessageSquare, href: "/admin-dashboard/admin/contact" },
+  { title: "FAQ Management", icon: BookOpen, href: "/admin-dashboard/admin/faq" },
 ]
 
 interface AdminSidebarProps {

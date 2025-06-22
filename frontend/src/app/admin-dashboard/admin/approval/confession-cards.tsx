@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Check, Clock, Eye, ExternalLink, MoreHorizontal, X, AlertTriangle, Ban, ImageIcon, User } from "lucide-react"
+import { Check, Clock, Eye, ExternalLink, ImageIcon, MoreHorizontal, User, X } from "lucide-react"
 import Image from "next/image"
 import type { Confession } from "./types/confession"
-import { getStatusColor, getFeelingEmoji, formatDate } from "./utils/helper"
+import { getStatusColor, formatDate } from "./utils/helper"
 
 interface ConfessionCardsProps {
   confessions: Confession[]
@@ -16,17 +16,14 @@ interface ConfessionCardsProps {
   onSelectionChange: (ids: number[]) => void
   onStatusChange: (id: number, status: "approved" | "rejected") => void
   onView: (confession: Confession) => void
-  onWarning: (id: number, message: string) => void
-  onBan: (id: number, reason: string) => void
 }
 
 export function ConfessionCards({
   confessions,
   selectedConfessions,
+  onSelectionChange,
   onStatusChange,
   onView,
-  onWarning,
-  onBan,
 }: ConfessionCardsProps) {
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
@@ -39,7 +36,7 @@ export function ConfessionCards({
             key={confession.id}
             className={`rounded-xl border text-card-foreground p-6 bg-white/60 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 animate-slide-up overflow-hidden ${
               isSelected ? "ring-2 ring-blue-500 border-blue-300" : ""
-            } ${confession.hasWarning ? "border-yellow-300" : ""} ${confession.isBanned ? "border-red-300" : ""}`}
+            }`}
             style={{ animationDelay: `${index * 100}ms` }}
           >
             <CardContent className="p-0">
@@ -55,7 +52,15 @@ export function ConfessionCards({
                     onClick={() => onView(confession)}
                   />
                   <div className="absolute top-3 right-3">
-                    <Checkbox checked={isSelected} className="bg-white/80 border-white" />
+                    <Checkbox 
+                      checked={isSelected} 
+                      className="bg-white/80 border-white"
+                      onCheckedChange={(checked) => onSelectionChange(
+                        checked 
+                          ? [...selectedConfessions, confession.id]
+                          : selectedConfessions.filter(id => id !== confession.id)
+                      )}
+                    />
                   </div>
                   <div className="absolute bottom-3 left-3">
                     <Badge className={`${getStatusColor(confession.status)} shadow-sm`}>
@@ -69,7 +74,14 @@ export function ConfessionCards({
                 {/* Header without image */}
                 {!confession.image && (
                   <div className="flex items-center justify-between">
-                    <Checkbox checked={isSelected} />
+                    <Checkbox 
+                      checked={isSelected} 
+                      onCheckedChange={(checked) => onSelectionChange(
+                        checked 
+                          ? [...selectedConfessions, confession.id]
+                          : selectedConfessions.filter(id => id !== confession.id)
+                      )}
+                    />
                     <Badge className={`${getStatusColor(confession.status)} shadow-sm`}>
                       {confession.status.charAt(0).toUpperCase() + confession.status.slice(1)}
                     </Badge>
@@ -83,16 +95,6 @@ export function ConfessionCards({
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-medium">
                         <User className="h-5 w-5" />
                       </div>
-                      {confession.hasWarning && (
-                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center">
-                          <AlertTriangle className="h-2 w-2 text-white" />
-                        </div>
-                      )}
-                      {confession.isBanned && (
-                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
-                          <Ban className="h-2 w-2 text-white" />
-                        </div>
-                      )}
                     </div>
                     <div>
                       <h3 className="font-semibold text-gray-900 text-sm">{confession.userName}</h3>
@@ -125,35 +127,46 @@ export function ConfessionCards({
                           onClick={() => onStatusChange(confession.id, "rejected")}
                         >
                           <X className="h-4 w-4 mr-2" />
-                          Reject
+                          Reject with Reason
                         </DropdownMenuItem>
                       )}
-                      <DropdownMenuItem
-                        className="text-yellow-600"
-                        onClick={() => onWarning(confession.id, "Content requires review")}
-                      >
-                        <AlertTriangle className="h-4 w-4 mr-2" />
-                        Send Warning
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-red-600"
-                        onClick={() => onBan(confession.id, "Inappropriate content")}
-                      >
-                        <Ban className="h-4 w-4 mr-2" />
-                        Ban User
-                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
 
                 {/* Description */}
-                <p className="text-sm text-gray-700 line-clamp-3">{confession.description}</p>
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-gray-900 text-sm line-clamp-1">{confession.title}</h4>
+                  <p className="text-sm text-gray-700 line-clamp-3">{confession.description}</p>
+                </div>
+
+                {/* Tags */}
+                {confession.tags && confession.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {confession.tags.slice(0, 3).map((tag: string, index: number) => (
+                      <Badge key={index} variant="secondary" className="text-xs">
+                        {tag}
+                      </Badge>
+                    ))}
+                    {confession.tags.length > 3 && (
+                      <Badge variant="outline" className="text-xs">
+                        +{confession.tags.length - 3}
+                      </Badge>
+                    )}
+                  </div>
+                )}
 
                 {/* Meta Info */}
                 <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">{getFeelingEmoji(confession.feeling)}</span>
-                    <span className="text-gray-600">{confession.feeling}</span>
+                  <div className="flex items-center gap-3 text-gray-600">
+                    <div className="flex items-center gap-1">
+                      <span className="text-red-500">❤</span>
+                      <span>{confession.likeCount}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-blue-500">💬</span>
+                      <span>{confession.commentCount}</span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-1 text-gray-500">
                     <Clock className="h-3 w-3" />

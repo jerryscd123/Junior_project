@@ -1,7 +1,5 @@
-import { ArrowRight } from "lucide-react"
 import Link from "next/link"
 import EmergencyCards from "./emergency-cards"
-import CrisisCenters from "./crisis-centers"
 import HeroSection from "./hero-section"
 
 export default function Home() {
@@ -49,16 +47,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="mb-16">
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="text-2xl md:text-3xl font-bold text-[#1d2b7d]">Crisis Centers in Phnom Penh</h2>
-            <Link href="#" className="text-[#1d2b7d] hover:text-[#1d2b7d]/80 text-sm flex items-center">
-              See all <ArrowRight className="ml-1 h-4 w-4" />
-            </Link>
-          </div>
-
-          <CrisisCenters />
-        </div>
+       
       </div>
     </main>
   )

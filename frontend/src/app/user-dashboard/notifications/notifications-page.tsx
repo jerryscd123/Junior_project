@@ -7,144 +7,92 @@ import NotificationItem from "./notification-item"
 import NotificationFilter from "./notification-filter"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import { useNotifications } from "@/store/hooks"
+import { useAppDispatch } from "@/store/hooks"
+import { 
+  fetchNotifications, 
+  setFilters, 
+  markAllAsRead,
+  clearNotifications,
+  markSpecificAsRead 
+} from "@/store/slices/notificationSlice"
 
 export default function NotificationsPage() {
   const [isVisible, setIsVisible] = useState(false)
   const [activeFilter, setActiveFilter] = useState("all")
   const [showUnreadOnly, setShowUnreadOnly] = useState(false)
-  const [notifications, setNotifications] = useState<Notification[]>([])
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false)
 
-  type NotificationType = "announcement" | "event" | "alert" | "update"
-
-  interface Notification {
-    id: number
-    title: string
-    message: string
-    type: NotificationType
-    date: string
-    isRead: boolean
-    link?: string
-  }
+  // Redux state
+  const dispatch = useAppDispatch()
+  const { 
+    notifications, 
+    unreadCount, 
+    loading, 
+    error
+  } = useNotifications()
 
   useEffect(() => {
     setIsVisible(true)
+    // Fetch notifications from API
+    dispatch(fetchNotifications({}))
+  }, [dispatch])
 
-    // Simulated notifications data
-    const notificationsData: Notification[] = [
-      {
-        id: 1,
-        title: "New Stress Management Workshop",
-        message: "Join us for a new workshop on stress management techniques this Friday at 3:00 PM in Room 305.",
-        type: "event",
-        date: "2025-05-10T15:00:00",
-        isRead: false,
-        link: "/events/stress-workshop",
-      },
-      {
-        id: 2,
-        title: "Mental Health Awareness Week",
-        message: "Mental Health Awareness Week starts next Monday. Check out the schedule of activities and workshops.",
-        type: "announcement",
-        date: "2025-05-15T09:00:00",
-        isRead: false,
-        link: "/events/mental-health-week",
-      },
-      {
-        id: 3,
-        title: "Counseling Services Schedule Change",
-        message: "Counseling services will be available extended hours (until 7:00 PM) during exam week.",
-        type: "update",
-        date: "2025-05-08T12:30:00",
-        isRead: true,
-      },
-      {
-        id: 4,
-        title: "New Resource: Sleep Improvement Guide",
-        message: "A new guide on improving sleep quality is now available in our resources section.",
-        type: "update",
-        date: "2025-05-07T10:15:00",
-        isRead: false,
-        link: "/resources/sleep-guide",
-      },
-      {
-        id: 5,
-        title: "Campus Closure Notice",
-        message:
-          "The campus will be closed this Saturday for scheduled maintenance. All support groups will be held online.",
-        type: "alert",
-        date: "2025-05-12T00:00:00",
-        isRead: true,
-      },
-      {
-        id: 6,
-        title: "Mindfulness Session Canceled",
-        message:
-          "Today's mindfulness session has been canceled due to instructor illness. We apologize for the inconvenience.",
-        type: "alert",
-        date: "2025-05-07T08:45:00",
-        isRead: false,
-      },
-      {
-        id: 7,
-        title: "New Peer Support Group",
-        message:
-          "A new peer support group for first-year students is starting next week. Meetings will be held on Tuesdays at 4:00 PM.",
-        type: "announcement",
-        date: "2025-05-14T16:00:00",
-        isRead: true,
-        link: "/support-groups/first-year",
-      },
-      {
-        id: 8,
-        title: "Feedback Survey",
-        message:
-          "Please take a moment to complete our feedback survey on mental health services. Your input helps us improve!",
-        type: "update",
-        date: "2025-05-06T14:20:00",
-        isRead: false,
-        link: "/survey/mental-health-feedback",
-      },
-    ]
+  // Update Redux filters when local filters change
+  useEffect(() => {
+    const newFilters: Record<string, string | boolean | number> = {}
+    
+    if (activeFilter !== "all") {
+      newFilters.type = activeFilter
+    }
+    
+    if (showUnreadOnly) {
+      newFilters.is_read = false
+    }
 
-    setNotifications(notificationsData)
-  }, [])
+    dispatch(setFilters({ ...newFilters, page: 1 }))
+    dispatch(fetchNotifications(newFilters))
+  }, [activeFilter, showUnreadOnly, dispatch])
 
   const markAsRead = (id: number) => {
-    setNotifications(
-      notifications.map((notification) => (notification.id === id ? { ...notification, isRead: true } : notification)),
-    )
+    dispatch(markSpecificAsRead([id]))
   }
 
   const dismissNotification = (id: number) => {
-    setNotifications(notifications.filter((notification) => notification.id !== id))
+    // For now, we'll mark as read instead of dismissing since the API might not support dismissing
+    markAsRead(id)
   }
 
-  const markAllAsRead = () => {
-    setNotifications(notifications.map((notification) => ({ ...notification, isRead: true })))
+  const markAllAsReadHandler = () => {
+    dispatch(markAllAsRead())
   }
 
   const clearAllNotifications = () => {
-    setNotifications([])
+    dispatch(clearNotifications())
   }
 
   const getFilteredNotifications = () => {
-    return notifications.filter((notification) => {
-      const typeMatch = activeFilter === "all" || notification.type === activeFilter
-      const readStatusMatch = !showUnreadOnly || !notification.isRead
-      return typeMatch && readStatusMatch
-    })
+    let filtered = notifications
+
+    if (activeFilter !== "all") {
+      filtered = filtered.filter(notification => notification.type === activeFilter)
+    }
+
+    if (showUnreadOnly) {
+      filtered = filtered.filter(notification => !notification.is_read)
+    }
+
+    return filtered
   }
 
   const filteredNotifications = getFilteredNotifications()
-  const unreadCount = notifications.filter((notification) => !notification.isRead).length
 
-  const filters = [
+  const filterOptions = [
     { id: "all", label: "All", icon: Bell },
-    { id: "announcement", label: "Announcements", icon: Megaphone },
-    { id: "event", label: "Events", icon: Calendar },
-    { id: "alert", label: "Alerts", icon: AlertTriangle },
-    { id: "update", label: "Updates", icon: Info },
+    { id: "like", label: "Likes", icon: Megaphone },
+    { id: "comment", label: "Comments", icon: Calendar },
+    { id: "admin_message", label: "Admin Messages", icon: AlertTriangle },
+    { id: "post_approved", label: "Post Updates", icon: Info },
   ]
 
   return (
@@ -185,11 +133,12 @@ export default function NotificationsPage() {
           </div>
           <div className="flex space-x-2">
             <button
-              onClick={markAllAsRead}
-              className="px-3 py-1.5 text-sm font-medium text-[#1d2b7d] bg-[#1d2b7d]/10 rounded-lg hover:bg-[#1d2b7d]/20 transition-colors flex items-center"
+              onClick={markAllAsReadHandler}
+              disabled={loading.markAsRead}
+              className="px-3 py-1.5 text-sm font-medium text-[#1d2b7d] bg-[#1d2b7d]/10 rounded-lg hover:bg-[#1d2b7d]/20 transition-colors flex items-center disabled:opacity-50"
             >
               <Check className="h-4 w-4 mr-1" />
-              Mark all read
+              {loading.markAsRead ? "Marking..." : "Mark all read"}
             </button>
             <button
               onClick={clearAllNotifications}
@@ -200,6 +149,29 @@ export default function NotificationsPage() {
             </button>
           </div>
         </motion.div>
+
+        {/* Error State */}
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-red-50 border border-red-200 rounded-xl p-4 mb-8"
+          >
+            <div className="flex items-center">
+              <AlertTriangle className="h-5 w-5 text-red-500 mr-3" />
+              <div>
+                <p className="text-red-800 font-medium">Error loading notifications</p>
+                <p className="text-red-600 text-sm">{error}</p>
+              </div>
+              <button
+                onClick={() => dispatch(fetchNotifications({}))}
+                className="ml-auto px-3 py-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm"
+              >
+                Retry
+              </button>
+            </div>
+          </motion.div>
+        )}
 
         {/* Filters */}
         <motion.div
@@ -221,7 +193,7 @@ export default function NotificationsPage() {
 
           {/* Desktop Filters */}
           <div className="hidden md:flex flex-wrap gap-2 mb-4">
-            {filters.map((filter, index) => (
+            {filterOptions.map((filter, index) => (
               <NotificationFilter
                 key={filter.id}
                 filter={filter}
@@ -243,7 +215,7 @@ export default function NotificationsPage() {
                 className="md:hidden bg-white rounded-lg shadow-sm overflow-hidden mb-4"
               >
                 <div className="p-2 grid grid-cols-2 gap-2">
-                  {filters.map((filter) => (
+                  {filterOptions.map((filter) => (
                     <NotificationFilter
                       key={filter.id}
                       filter={filter}
@@ -275,7 +247,15 @@ export default function NotificationsPage() {
           transition={{ duration: 0.5, delay: 0.3 }}
           className="space-y-4"
         >
-          {filteredNotifications.length > 0 ? (
+          {loading.fetchNotifications ? (
+            <div className="bg-white rounded-xl shadow-sm p-8 text-center">
+              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-8 h-8 border-4 border-[#1d2b7d] border-t-transparent rounded-full animate-spin"></div>
+              </div>
+              <h3 className="text-xl font-medium text-slate-700 mb-2">Loading notifications...</h3>
+              <p className="text-slate-500">Please wait while we fetch your latest notifications</p>
+            </div>
+          ) : filteredNotifications.length > 0 ? (
             filteredNotifications.map((notification, index) => (
               <NotificationItem
                 key={notification.id}

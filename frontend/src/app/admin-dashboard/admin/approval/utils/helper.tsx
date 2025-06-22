@@ -1,4 +1,8 @@
-export const getStatusColor = (status: string) => {
+export const getStatusColor = (status: string | undefined | null) => {
+    if (!status) {
+      return "bg-gray-100 text-gray-700 border-gray-200"
+    }
+    
     switch (status.toLowerCase()) {
       case "pending":
         return "bg-orange-100 text-orange-700 border-orange-200"
@@ -11,7 +15,11 @@ export const getStatusColor = (status: string) => {
     }
   }
   
-  export const getFeelingEmoji = (feeling: string) => {
+  export const getFeelingEmoji = (feeling: string | undefined | null) => {
+    if (!feeling) {
+      return "😐"
+    }
+    
     switch (feeling.toLowerCase()) {
       case "anxious":
         return "😰"
@@ -38,8 +46,26 @@ export const getStatusColor = (status: string) => {
     }
   }
   
-  export const formatDate = (dateString: string) => {
+  export const formatDate = (dateString: string | undefined | null) => {
+    if (!dateString) {
+      const fallbackDate = new Date()
+      return {
+        date: fallbackDate.toLocaleDateString(),
+        time: fallbackDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        relative: "Unknown",
+      }
+    }
+    
     const date = new Date(dateString)
+    if (isNaN(date.getTime())) {
+      const fallbackDate = new Date()
+      return {
+        date: fallbackDate.toLocaleDateString(),
+        time: fallbackDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        relative: "Invalid date",
+      }
+    }
+    
     return {
       date: date.toLocaleDateString(),
       time: date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
@@ -48,6 +74,10 @@ export const getStatusColor = (status: string) => {
   }
   
   export const getRelativeTime = (date: Date) => {
+    if (!date || isNaN(date.getTime())) {
+      return "Unknown"
+    }
+    
     const now = new Date()
     const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60))
   
@@ -57,8 +87,16 @@ export const getStatusColor = (status: string) => {
     return `${Math.floor(diffInHours / 24)}d ago`
   }
   
-  export const getTimeFilter = (dateString: string) => {
+  export const getTimeFilter = (dateString: string | undefined | null) => {
+    if (!dateString) {
+      return "older"
+    }
+    
     const date = new Date(dateString)
+    if (isNaN(date.getTime())) {
+      return "older"
+    }
+    
     const now = new Date()
     const diffInDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
   

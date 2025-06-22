@@ -121,11 +121,18 @@ export function ConfessionModal({ confession, isOpen, onClose, onStatusChange }:
               {confession.adminComment && (
                 <div className="bg-white/70 backdrop-blur-sm rounded-xl p-6 border border-white/30 shadow-sm">
                   <h4 className="font-semibold text-gray-900 flex items-center gap-2 mb-4">
-                    <MessageCircle className="h-5 w-5 text-green-600" />
+                    <MessageCircle className={`h-5 w-5 ${confession.status === "rejected" ? "text-red-600" : "text-green-600"}`} />
                     Admin Response
+                    {confession.status === "rejected" && <Badge variant="destructive" className="ml-2">Rejection Reason</Badge>}
                   </h4>
-                  <div className="bg-green-50/80 p-6 rounded-lg border border-green-200/50">
-                    <p className="text-green-800 leading-relaxed text-base font-medium">{confession.adminComment}</p>
+                  <div className={`${
+                    confession.status === "rejected" 
+                      ? "bg-red-50/80 p-6 rounded-lg border border-red-200/50" 
+                      : "bg-green-50/80 p-6 rounded-lg border border-green-200/50"
+                  }`}>
+                    <p className={`leading-relaxed text-base font-medium ${
+                      confession.status === "rejected" ? "text-red-800" : "text-green-800"
+                    }`}>{confession.adminComment}</p>
                   </div>
                 </div>
               )}
@@ -187,7 +194,7 @@ export function ConfessionModal({ confession, isOpen, onClose, onStatusChange }:
                       onClick={() => onStatusChange(confession.id, "rejected")}
                     >
                       <X className="h-4 w-4 mr-2" />
-                      Reject
+                      Reject with Reason
                     </Button>
                   )}
                 </div>
